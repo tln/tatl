@@ -1,57 +1,65 @@
 attrs = 'def="' @defExpr '"' 
 	| 'for="' @forExpr '"'
     | 'if="' @ifExpr '"' 
-	| 'filt="' @filtExpr '"'
 	| 'param="' @paramExpr '"'
 	| 'set="' @setExpr '"' 
-	| 'elide="' @elideExpr '"';
-addExpr = expr {filter} {';' addExpr} ;
-defExpr = name:NAME args:arglist {filter+:filter} ;
-setExpr = name:NAME filter+:setFilter {filter+:filter} ;
-setFilter = '|' @('tag' | 'contents') ;
+	| 'use="'  useExpr '"' 
+	| top ;
+defExpr = name:NAME args:arglist {filter+:filter} ['=' result:expr];
+setExpr = set+:set {';' set+:set} ;
 arglist = '(' [@+:arg {',' @+:arg} [',']] ')' ;
 arg = @NAME | @'*' ;
-forExpr = [n1:lvar [',' n2:lvar] 'in'] expr:expr ;
-ifExpr = @test ;
-filtExpr = (@call | @path) {'|' (@call | @path)} ;
+forExpr = {set+:set ';'} [n1:lvar [',' n2:lvar] 'in'] expr:expr ;
+ifExpr = {set+:set ';'} @test ;
 paramExpr = @+:lvar {',' @+:lvar} ;
-useExpr = path;
-elideExpr = ['elide'] ;
+useExpr = {set+:set ';'} path:path [arglist:callargs];
+callargs = '(' [expr {',' expr} [',']] ')';
 
 top = '{' {set+:set ';'} (set+:set | ({exprs+:expr ';'} [emit:topemitexpr])) '}' ;
-topemitexpr = star:starexp | filtexp:filtexp ;
-filter = '|' (  @call | @path | @string) ;
-filtexp = expr:expr {filter+:filter} ;
-starexp = @('*' | '++') ':' @NAME ;
-set = lvar:lvar '=' ('{' expr:expr '}') ;
-lvar = NAME ;
-dottedPath =  @+:NAME {'.' @+:NAME}* ;
-dotPath = @+:'.' [@+:NAME {'.' @+:NAME}*] ;
-externalPath = module:NAME '::' path+:NAME {'.' path+:NAME} ;
-path = path:(externalPath | dotPath | dottedPath) lookup:[lookup] ;
-lookup = '[' @simpleexpr ']' ;
-value = number | string ;
-number = NUMBER ;
-string = STRING ;
-map = '{' [@+:member {',' @+:member}] '}' ;
-member = ( nkey:NAME | skey:STRING) ':' val:expr ;
 
-test = regex | comp ;
-regex = expr:simpleexpr '~' re:re ;
-re = REGEX ;
-comp = @+:simpleexpr ( {@+:compop @+:simpleexpr}+ 
-                     | [@+:eqop @+:simpleexpr] 
-					 ) ;
-eqop = '==' | '!=' ;
-compop = '<=' | '<' | '>=' | '>';
-simpleexpr = call | path | number | string | list | map ;
-expr = ternary | range | simpleexpr;
-ternary = test:test '?' true:expr ':' false:expr ;
-case = case:expr matches:{match}+ otherwise:[':' @expr];
-match = (op:'~=' expr:expr | op:'~~' expr:re) '->' result:expr; 
-range = simpleexpr (  '...' | '..' ) simpleexpr ;
-list = '[' [@+:expr {',' @+:expr} [',']]  ']' ;
-call = fn:path '(' [arg+:expr {',' arg+:expr} [',']] ')' ;
+	set = lvar:lvar op:('='|'=?'|'?=') expr:expr ;
+		lvar = NAME ;
+
+	topemitexpr = star:starexp | filtexp:filtexp ;
+		filtexp = expr:expr {filter+:filter} ;
+		filter = '|' (  @call | @path | @string) ;
+		starexp = @('*' | '++') ':' @NAME ;
+
+
+	expr = ternary | range | simpleexpr;
+
+		ternary = test:test ('?' true:expr [':' false:expr] | '?:' false:expr);
+(*expr*)	test = regex | comp;
+				regex = expr:simpleexpr op:('~'|'!~'|'~!') re:REGEX ;
+				comp = @+:simpleexpr ( {@+:compop @+:simpleexpr}+ 
+				                     | [@+:eqop @+:simpleexpr] 
+									 ) ;
+					eqop = '==' | '!=' ;
+					compop = '<=' | '=<' | '<' | '>=' | '=>' | '>';
+
+		range = simpleexpr (  '...' | '..' ) simpleexpr ;
+
+		simpleexpr = call | path | value | list | map ;
+
+(*expr*)	call = fn:path '(' [arg+:expr {',' arg+:expr} [',']] ')' ;
+
+			path = path:(externalPath | dotPath | dottedPath) lookup:[lookup] ;
+				dottedPath =  @+:NAME {'.' @+:NAME}* ;
+				dotPath = @+:'.' [@+:NAME {'.' @+:NAME}*] ;
+				externalPath = module:NAME '::' path+:NAME {'.' path+:NAME} ;
+(*simpleexpr*)	lookup = '[' @simpleexpr ']' ;
+
+			value = number | string ;
+				number = NUMBER ;
+				string = STRING ;
+
+
+(*expr*)	list = '[' [@+:(expr|starexp) {',' @+:(expr|starexp)} [',']]  ']' ;
+(*expr*)		starexp = '*' expr ;
+
+			map = '{' [@+:(member|starexp) {',' @+:(member|starexp)}] '}' ;
+				member = ( nkey:NAME | skey:STRING) ':' val:expr ;
+
 REGEX = ?/[/].*?[/]/?;
 NAME = ?/[a-zA-Z_][a-zA-Z0-9_]*/? ;
 INT = ?/[0-9]+/? ;
