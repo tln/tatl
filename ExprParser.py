@@ -12,7 +12,7 @@ from __future__ import print_function, division, absolute_import, unicode_litera
 from grako.parsing import * # @UnusedWildImport
 from grako.exceptions import * # @UnusedWildImport
 
-__version__ = '14.045.05.00.44'
+__version__ = '14.045.20.39.02'
 
 class ExprParser(Parser):
     def __init__(self, whitespace=None, nameguard=True, **kwargs):
@@ -38,11 +38,6 @@ class ExprParser(Parser):
                 self.ast['@'] = self.last_node
                 self._token('"')
             with self._option():
-                self._token('filt="')
-                self._filtExpr_()
-                self.ast['@'] = self.last_node
-                self._token('"')
-            with self._option():
                 self._token('param="')
                 self._paramExpr_()
                 self.ast['@'] = self.last_node
@@ -53,22 +48,12 @@ class ExprParser(Parser):
                 self.ast['@'] = self.last_node
                 self._token('"')
             with self._option():
-                self._token('elide="')
-                self._elideExpr_()
-                self.ast['@'] = self.last_node
+                self._token('use="')
+                self._useExpr_()
                 self._token('"')
+            with self._option():
+                self._top_()
             self._error('no available options')
-
-    @rule_def
-    def _addExpr_(self):
-        self._expr_()
-        def block0():
-            self._filter_()
-        self._closure(block0)
-        def block1():
-            self._token(';')
-            self._addExpr_()
-        self._closure(block1)
 
     @rule_def
     def _defExpr_(self):
@@ -80,29 +65,20 @@ class ExprParser(Parser):
             self._filter_()
             self.ast.add_list('filter', self.last_node)
         self._closure(block2)
+        with self._optional():
+            self._token('=')
+            self._expr_()
+            self.ast['result'] = self.last_node
 
     @rule_def
     def _setExpr_(self):
-        self._NAME_()
-        self.ast['name'] = self.last_node
-        self._setFilter_()
-        self.ast.add_list('filter', self.last_node)
-        def block2():
-            self._filter_()
-            self.ast.add_list('filter', self.last_node)
-        self._closure(block2)
-
-    @rule_def
-    def _setFilter_(self):
-        self._token('|')
-        with self._group():
-            with self._choice():
-                with self._option():
-                    self._token('tag')
-                with self._option():
-                    self._token('contents')
-                self._error('expecting one of: tag contents')
-        self.ast['@'] = self.last_node
+        self._set_()
+        self.ast.add_list('set', self.last_node)
+        def block1():
+            self._token(';')
+            self._set_()
+            self.ast.add_list('set', self.last_node)
+        self._closure(block1)
 
     @rule_def
     def _arglist_(self):
@@ -132,6 +108,11 @@ class ExprParser(Parser):
 
     @rule_def
     def _forExpr_(self):
+        def block0():
+            self._set_()
+            self.ast.add_list('set', self.last_node)
+            self._token(';')
+        self._closure(block0)
         with self._optional():
             self._lvar_()
             self.ast['n1'] = self.last_node
@@ -145,32 +126,13 @@ class ExprParser(Parser):
 
     @rule_def
     def _ifExpr_(self):
+        def block0():
+            self._set_()
+            self.ast.add_list('set', self.last_node)
+            self._token(';')
+        self._closure(block0)
         self._test_()
         self.ast['@'] = self.last_node
-
-    @rule_def
-    def _filtExpr_(self):
-        with self._group():
-            with self._choice():
-                with self._option():
-                    self._call_()
-                    self.ast['@'] = self.last_node
-                with self._option():
-                    self._path_()
-                    self.ast['@'] = self.last_node
-                self._error('no available options')
-        def block3():
-            self._token('|')
-            with self._group():
-                with self._choice():
-                    with self._option():
-                        self._call_()
-                        self.ast['@'] = self.last_node
-                    with self._option():
-                        self._path_()
-                        self.ast['@'] = self.last_node
-                    self._error('no available options')
-        self._closure(block3)
 
     @rule_def
     def _paramExpr_(self):
@@ -184,12 +146,29 @@ class ExprParser(Parser):
 
     @rule_def
     def _useExpr_(self):
+        def block0():
+            self._set_()
+            self.ast.add_list('set', self.last_node)
+            self._token(';')
+        self._closure(block0)
         self._path_()
+        self.ast['path'] = self.last_node
+        with self._optional():
+            self._callargs_()
+            self.ast['arglist'] = self.last_node
 
     @rule_def
-    def _elideExpr_(self):
+    def _callargs_(self):
+        self._token('(')
         with self._optional():
-            self._token('elide')
+            self._expr_()
+            def block0():
+                self._token(',')
+                self._expr_()
+            self._closure(block0)
+            with self._optional():
+                self._token(',')
+        self._token(')')
 
     @rule_def
     def _top_(self):
@@ -218,6 +197,27 @@ class ExprParser(Parser):
         self._token('}')
 
     @rule_def
+    def _set_(self):
+        self._lvar_()
+        self.ast['lvar'] = self.last_node
+        with self._group():
+            with self._choice():
+                with self._option():
+                    self._token('=')
+                with self._option():
+                    self._token('=?')
+                with self._option():
+                    self._token('?=')
+                self._error('expecting one of: =? ?= =')
+        self.ast['op'] = self.last_node
+        self._expr_()
+        self.ast['expr'] = self.last_node
+
+    @rule_def
+    def _lvar_(self):
+        self._NAME_()
+
+    @rule_def
     def _topemitexpr_(self):
         with self._choice():
             with self._option():
@@ -227,6 +227,15 @@ class ExprParser(Parser):
                 self._filtexp_()
                 self.ast['filtexp'] = self.last_node
             self._error('no available options')
+
+    @rule_def
+    def _filtexp_(self):
+        self._expr_()
+        self.ast['expr'] = self.last_node
+        def block1():
+            self._filter_()
+            self.ast.add_list('filter', self.last_node)
+        self._closure(block1)
 
     @rule_def
     def _filter_(self):
@@ -245,42 +254,188 @@ class ExprParser(Parser):
                 self._error('no available options')
 
     @rule_def
-    def _filtexp_(self):
-        self._expr_()
-        self.ast['expr'] = self.last_node
-        def block1():
-            self._filter_()
-            self.ast.add_list('filter', self.last_node)
-        self._closure(block1)
+    def _starexp_(self):
+        with self._choice():
+            with self._option():
+                with self._group():
+                    with self._choice():
+                        with self._option():
+                            self._token('*')
+                        with self._option():
+                            self._token('++')
+                        self._error('expecting one of: ++ *')
+                self.ast['@'] = self.last_node
+                self._token(':')
+                self._NAME_()
+                self.ast['@'] = self.last_node
+            with self._option():
+                self._token('*')
+                self._expr_()
+            self._error('no available options')
 
     @rule_def
-    def _starexp_(self):
+    def _expr_(self):
+        with self._choice():
+            with self._option():
+                self._ternary_()
+            with self._option():
+                self._range_()
+            with self._option():
+                self._simpleexpr_()
+            self._error('no available options')
+
+    @rule_def
+    def _ternary_(self):
+        self._test_()
+        self.ast['test'] = self.last_node
         with self._group():
             with self._choice():
                 with self._option():
-                    self._token('*')
+                    self._token('?')
+                    self._expr_()
+                    self.ast['true'] = self.last_node
+                    with self._optional():
+                        self._token(':')
+                        self._expr_()
+                        self.ast['false'] = self.last_node
                 with self._option():
-                    self._token('++')
-                self._error('expecting one of: ++ *')
-        self.ast['@'] = self.last_node
-        self._token(':')
-        self._NAME_()
-        self.ast['@'] = self.last_node
+                    self._token('?:')
+                    self._expr_()
+                    self.ast['false'] = self.last_node
+                self._error('no available options')
 
     @rule_def
-    def _set_(self):
-        self._lvar_()
-        self.ast['lvar'] = self.last_node
-        self._token('=')
+    def _test_(self):
+        with self._choice():
+            with self._option():
+                self._regex_()
+            with self._option():
+                self._comp_()
+            self._error('no available options')
+
+    @rule_def
+    def _regex_(self):
+        self._simpleexpr_()
+        self.ast['expr'] = self.last_node
         with self._group():
-            self._token('{')
-            self._expr_()
-            self.ast['expr'] = self.last_node
-            self._token('}')
+            with self._choice():
+                with self._option():
+                    self._token('~')
+                with self._option():
+                    self._token('!~')
+                with self._option():
+                    self._token('~!')
+                self._error('expecting one of: ~ !~ ~!')
+        self.ast['op'] = self.last_node
+        self._REGEX_()
+        self.ast['re'] = self.last_node
 
     @rule_def
-    def _lvar_(self):
-        self._NAME_()
+    def _comp_(self):
+        self._simpleexpr_()
+        self.ast.add_list('@', self.last_node)
+        with self._group():
+            with self._choice():
+                with self._option():
+                    def block1():
+                        self._compop_()
+                        self.ast.add_list('@', self.last_node)
+                        self._simpleexpr_()
+                        self.ast.add_list('@', self.last_node)
+                    self._positive_closure(block1)
+                with self._option():
+                    with self._optional():
+                        self._eqop_()
+                        self.ast.add_list('@', self.last_node)
+                        self._simpleexpr_()
+                        self.ast.add_list('@', self.last_node)
+                self._error('no available options')
+
+    @rule_def
+    def _eqop_(self):
+        with self._choice():
+            with self._option():
+                self._token('==')
+            with self._option():
+                self._token('!=')
+            self._error('expecting one of: == !=')
+
+    @rule_def
+    def _compop_(self):
+        with self._choice():
+            with self._option():
+                self._token('<=')
+            with self._option():
+                self._token('=<')
+            with self._option():
+                self._token('<')
+            with self._option():
+                self._token('>=')
+            with self._option():
+                self._token('=>')
+            with self._option():
+                self._token('>')
+            self._error('expecting one of: > >= => <= < =<')
+
+    @rule_def
+    def _range_(self):
+        self._simpleexpr_()
+        with self._group():
+            with self._choice():
+                with self._option():
+                    self._token('...')
+                with self._option():
+                    self._token('..')
+                self._error('expecting one of: .. ...')
+        self._simpleexpr_()
+
+    @rule_def
+    def _simpleexpr_(self):
+        with self._choice():
+            with self._option():
+                self._call_()
+            with self._option():
+                self._path_()
+            with self._option():
+                self._value_()
+            with self._option():
+                self._list_()
+            with self._option():
+                self._map_()
+            self._error('no available options')
+
+    @rule_def
+    def _call_(self):
+        self._path_()
+        self.ast['fn'] = self.last_node
+        self._token('(')
+        with self._optional():
+            self._expr_()
+            self.ast.add_list('arg', self.last_node)
+            def block2():
+                self._token(',')
+                self._expr_()
+                self.ast.add_list('arg', self.last_node)
+            self._closure(block2)
+            with self._optional():
+                self._token(',')
+        self._token(')')
+
+    @rule_def
+    def _path_(self):
+        with self._group():
+            with self._choice():
+                with self._option():
+                    self._externalPath_()
+                with self._option():
+                    self._dotPath_()
+                with self._option():
+                    self._dottedPath_()
+                self._error('no available options')
+        self.ast['path'] = self.last_node
+        with self._optional():
+            self._lookup_()
+        self.ast['lookup'] = self.last_node
 
     @rule_def
     def _dottedPath_(self):
@@ -319,22 +474,6 @@ class ExprParser(Parser):
         self._closure(block2)
 
     @rule_def
-    def _path_(self):
-        with self._group():
-            with self._choice():
-                with self._option():
-                    self._externalPath_()
-                with self._option():
-                    self._dotPath_()
-                with self._option():
-                    self._dottedPath_()
-                self._error('no available options')
-        self.ast['path'] = self.last_node
-        with self._optional():
-            self._lookup_()
-        self.ast['lookup'] = self.last_node
-
-    @rule_def
     def _lookup_(self):
         self._token('[')
         self._simpleexpr_()
@@ -359,16 +498,55 @@ class ExprParser(Parser):
         self._STRING_()
 
     @rule_def
+    def _list_(self):
+        self._token('[')
+        with self._optional():
+            with self._group():
+                with self._choice():
+                    with self._option():
+                        self._expr_()
+                    with self._option():
+                        self._starexp_()
+                    self._error('no available options')
+            self.ast.add_list('@', self.last_node)
+            def block2():
+                self._token(',')
+                with self._group():
+                    with self._choice():
+                        with self._option():
+                            self._expr_()
+                        with self._option():
+                            self._starexp_()
+                        self._error('no available options')
+                self.ast.add_list('@', self.last_node)
+            self._closure(block2)
+            with self._optional():
+                self._token(',')
+        self._token(']')
+
+    @rule_def
     def _map_(self):
         self._token('{')
         with self._optional():
-            self._member_()
+            with self._group():
+                with self._choice():
+                    with self._option():
+                        self._member_()
+                    with self._option():
+                        self._starexp_()
+                    self._error('no available options')
             self.ast.add_list('@', self.last_node)
-            def block1():
+            def block2():
                 self._token(',')
-                self._member_()
+                with self._group():
+                    with self._choice():
+                        with self._option():
+                            self._member_()
+                        with self._option():
+                            self._starexp_()
+                        self._error('no available options')
                 self.ast.add_list('@', self.last_node)
-            self._closure(block1)
+            self._closure(block2)
         self._token('}')
 
     @rule_def
@@ -385,191 +563,6 @@ class ExprParser(Parser):
         self._token(':')
         self._expr_()
         self.ast['val'] = self.last_node
-
-    @rule_def
-    def _test_(self):
-        with self._choice():
-            with self._option():
-                self._regex_()
-            with self._option():
-                self._comp_()
-            self._error('no available options')
-
-    @rule_def
-    def _regex_(self):
-        self._simpleexpr_()
-        self.ast['expr'] = self.last_node
-        self._token('~')
-        self._re_()
-        self.ast['re'] = self.last_node
-
-    @rule_def
-    def _re_(self):
-        self._REGEX_()
-
-    @rule_def
-    def _comp_(self):
-        self._simpleexpr_()
-        self.ast.add_list('@', self.last_node)
-        with self._group():
-            with self._choice():
-                with self._option():
-                    def block1():
-                        self._compop_()
-                        self.ast.add_list('@', self.last_node)
-                        self._simpleexpr_()
-                        self.ast.add_list('@', self.last_node)
-                    self._positive_closure(block1)
-                with self._option():
-                    with self._optional():
-                        self._eqop_()
-                        self.ast.add_list('@', self.last_node)
-                        self._simpleexpr_()
-                        self.ast.add_list('@', self.last_node)
-                self._error('no available options')
-
-    @rule_def
-    def _eqop_(self):
-        with self._choice():
-            with self._option():
-                self._token('==')
-            with self._option():
-                self._token('!=')
-            self._error('expecting one of: == !=')
-
-    @rule_def
-    def _compop_(self):
-        with self._choice():
-            with self._option():
-                self._token('<=')
-            with self._option():
-                self._token('<')
-            with self._option():
-                self._token('>=')
-            with self._option():
-                self._token('>')
-            self._error('expecting one of: > < <= >=')
-
-    @rule_def
-    def _simpleexpr_(self):
-        with self._choice():
-            with self._option():
-                self._call_()
-            with self._option():
-                self._path_()
-            with self._option():
-                self._number_()
-            with self._option():
-                self._string_()
-            with self._option():
-                self._list_()
-            with self._option():
-                self._map_()
-            self._error('no available options')
-
-    @rule_def
-    def _expr_(self):
-        with self._choice():
-            with self._option():
-                self._ternary_()
-            with self._option():
-                self._range_()
-            with self._option():
-                self._simpleexpr_()
-            self._error('no available options')
-
-    @rule_def
-    def _ternary_(self):
-        self._test_()
-        self.ast['test'] = self.last_node
-        self._token('?')
-        self._expr_()
-        self.ast['true'] = self.last_node
-        self._token(':')
-        self._expr_()
-        self.ast['false'] = self.last_node
-
-    @rule_def
-    def _case_(self):
-        self._expr_()
-        self.ast['case'] = self.last_node
-        def block2():
-            self._match_()
-        self._positive_closure(block2)
-
-        self.ast['matches'] = self.last_node
-        with self._optional():
-            self._token(':')
-            self._expr_()
-            self.ast['@'] = self.last_node
-        self.ast['otherwise'] = self.last_node
-
-    @rule_def
-    def _match_(self):
-        with self._group():
-            with self._choice():
-                with self._option():
-                    self._token('~=')
-                    self.ast['op'] = self.last_node
-                    self._expr_()
-                    self.ast['expr'] = self.last_node
-                with self._option():
-                    self._token('~~')
-                    self.ast['op'] = self.last_node
-                    self._re_()
-                    self.ast['expr'] = self.last_node
-                self._error('no available options')
-        self._token('->')
-        self._expr_()
-        self.ast['result'] = self.last_node
-
-    @rule_def
-    def _range_(self):
-        self._simpleexpr_()
-        with self._group():
-            with self._choice():
-                with self._option():
-                    self._token('...')
-                with self._option():
-                    self._token('..')
-                self._error('expecting one of: .. ...')
-        self._simpleexpr_()
-
-    @rule_def
-    def _list_(self):
-        self._token('[')
-        with self._optional():
-            self._expr_()
-            self.ast.add_list('@', self.last_node)
-            def block1():
-                self._token(',')
-                self._expr_()
-                self.ast.add_list('@', self.last_node)
-            self._closure(block1)
-            with self._optional():
-                self._token(',')
-        with self._optional():
-            self._token('*')
-            self._expr_()
-        self.ast.add_list('@', self.last_node)
-        self._token(']')
-
-    @rule_def
-    def _call_(self):
-        self._path_()
-        self.ast['fn'] = self.last_node
-        self._token('(')
-        with self._optional():
-            self._expr_()
-            self.ast.add_list('arg', self.last_node)
-            def block2():
-                self._token(',')
-                self._expr_()
-                self.ast.add_list('arg', self.last_node)
-            self._closure(block2)
-            with self._optional():
-                self._token(',')
-        self._token(')')
 
     @rule_def
     def _REGEX_(self):
@@ -649,16 +642,10 @@ class ExprSemantics(object):
     def attrs(self, ast):
         return ast
 
-    def addExpr(self, ast):
-        return ast
-
     def defExpr(self, ast):
         return ast
 
     def setExpr(self, ast):
-        return ast
-
-    def setFilter(self, ast):
         return ast
 
     def arglist(self, ast):
@@ -673,37 +660,67 @@ class ExprSemantics(object):
     def ifExpr(self, ast):
         return ast
 
-    def filtExpr(self, ast):
-        return ast
-
     def paramExpr(self, ast):
         return ast
 
     def useExpr(self, ast):
         return ast
 
-    def elideExpr(self, ast):
+    def callargs(self, ast):
         return ast
 
     def top(self, ast):
-        return ast
-
-    def topemitexpr(self, ast):
-        return ast
-
-    def filter(self, ast):
-        return ast
-
-    def filtexp(self, ast):
-        return ast
-
-    def starexp(self, ast):
         return ast
 
     def set(self, ast):
         return ast
 
     def lvar(self, ast):
+        return ast
+
+    def topemitexpr(self, ast):
+        return ast
+
+    def filtexp(self, ast):
+        return ast
+
+    def filter(self, ast):
+        return ast
+
+    def starexp(self, ast):
+        return ast
+
+    def expr(self, ast):
+        return ast
+
+    def ternary(self, ast):
+        return ast
+
+    def test(self, ast):
+        return ast
+
+    def regex(self, ast):
+        return ast
+
+    def comp(self, ast):
+        return ast
+
+    def eqop(self, ast):
+        return ast
+
+    def compop(self, ast):
+        return ast
+
+    def range(self, ast):
+        return ast
+
+    def simpleexpr(self, ast):
+        return ast
+
+    def call(self, ast):
+        return ast
+
+    def path(self, ast):
         return ast
 
     def dottedPath(self, ast):
@@ -713,9 +730,6 @@ class ExprSemantics(object):
         return ast
 
     def externalPath(self, ast):
-        return ast
-
-    def path(self, ast):
         return ast
 
     def lookup(self, ast):
@@ -730,52 +744,13 @@ class ExprSemantics(object):
     def string(self, ast):
         return ast
 
+    def list(self, ast):
+        return ast
+
     def map(self, ast):
         return ast
 
     def member(self, ast):
-        return ast
-
-    def test(self, ast):
-        return ast
-
-    def regex(self, ast):
-        return ast
-
-    def re(self, ast):
-        return ast
-
-    def comp(self, ast):
-        return ast
-
-    def eqop(self, ast):
-        return ast
-
-    def compop(self, ast):
-        return ast
-
-    def simpleexpr(self, ast):
-        return ast
-
-    def expr(self, ast):
-        return ast
-
-    def ternary(self, ast):
-        return ast
-
-    def case(self, ast):
-        return ast
-
-    def match(self, ast):
-        return ast
-
-    def range(self, ast):
-        return ast
-
-    def list(self, ast):
-        return ast
-
-    def call(self, ast):
         return ast
 
     def REGEX(self, ast):
