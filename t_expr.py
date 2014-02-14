@@ -42,14 +42,19 @@ def runtests():
         print
         return
         
+    W, H = getTerminalSize()
     maxlen = max(map(len, tests))
+    fmt = '%2d> %s | %s'
+    ofs = len(fmt%(1,'',''))
     for i, test in enumerate(tests):
         try:
-            result = parser.parse(test, rule_name=rule)
+            result = str(parser.parse(test, rule_name=rule))
         except Exception, e:
             result = 'ERROR: ' + str(e)
-            result = result.replace('\n', ' ')[:max(40, 72-maxlen)]
-        print '%2d> %s | %s' % (i+1, test.ljust(maxlen), result)
+        n = maxlen+ofs
+        ind = ' '*n
+        result = '\n'.join([ind+line[:W-n-1] for line in result.splitlines()])[n:]
+        print fmt % (i+1, test.ljust(maxlen), result)
     print
 
 settest_inp = re.compile('>(\d+)?\s*([+-=]\s*)(.*)')
@@ -79,6 +84,35 @@ def loadtests():
         tests = open(f).read().splitlines()
     else:
         tests = []
+   
+def getTerminalSize():
+    import os
+    env = os.environ
+    def ioctl_GWINSZ(fd):
+        try:
+            import fcntl, termios, struct, os
+            cr = struct.unpack('hh', fcntl.ioctl(fd, termios.TIOCGWINSZ,
+        '1234'))
+        except:
+            return
+        return cr
+    cr = ioctl_GWINSZ(0) or ioctl_GWINSZ(1) or ioctl_GWINSZ(2)
+    if not cr:
+        try:
+            fd = os.open(os.ctermid(), os.O_RDONLY)
+            cr = ioctl_GWINSZ(fd)
+            os.close(fd)
+        except:
+            pass
+    if not cr:
+        cr = (env.get('LINES', 25), env.get('COLUMNS', 80))
+
+        ### Use get(key[, default]) instead of a try/catch
+        #try:
+        #    cr = (env['LINES'], env['COLUMNS'])
+        #except:
+        #    cr = (25, 80)
+    return int(cr[1]), int(cr[0])
     
 parseinfo = False
 compile()
