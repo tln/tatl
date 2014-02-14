@@ -1,0 +1,489 @@
+<title>T Template Language</title>
+
+<h1>T Template Language</h1>
+<h2>A templating system thats good for outputting HTML, for Javascript (well not yet) and (very brave) Pythoneers.</h2>
+
+<h3>Basic Templating</h3>
+
+Pretty basic! {} are *substitions*. for= and if= are special *attributes*. There are a few more
+special attributes, which we'll see in the advanced section. On to tags >>
+
+	<html>
+		<h1>Hello {name}<h1>
+		<p if="number">Your emergency contact number is: {number}</p>
+		<li>
+			<ul for="notice in notices">{notice}<ul>
+		</li>
+	</html>
+
+Ok, now lets look at the special *tags*. Just two: <do> acts like any other tag but doesn't show up in the output.
+
+We're using it to loop, where the looped contents don't all go in the same tag (it happens).
+
+<else> works with if=. <else if=""> would do what you expect too.
+	
+Also, notice we're looping over a list of numbers now, and we're just writing that list in here directly. 
+	
+Shortcuts >>
+		
+	<html>
+		<h1>Hello {name}<h1>
+		<p if="number">
+			Your emergency contact number is: {number}
+			<else>
+			Please set an emergency contact number!
+		</p>
+		<li>
+			<ul for="notice in notices">{notice}<ul>
+		</li>
+		<form>
+			Rate our service!
+			<do for="rating in [1, 2, 3, 4, 5]">
+				<input type="radio" name="rating" value="{rating}"> {rating}
+			</do>
+		</form>
+	</html>
+
+We can use shortcuts here. 
+
+Instead of if="number", we can just shorten to "if". This basically checks the substituion values,
+(see elide= for all the details). 
+
+We can also leave the loop variable name off the for= attribute. It will default to . (see the dot).
+
+Finally, there's syntax to make a list of numbers (more details). 
+
+Structured data >>
+
+	<html>
+		<h1>Hello {name}<h1>
+		<p if>
+			Your emergency contact number is: {number}
+			<else>
+			Please set an emergency contact number!
+		</p>
+		<li>
+			<ul for="notices">{.}<ul>
+		</li>
+		<form>
+			Rate our service!
+			<do for="5...1">
+				<input type="radio" name="rating" value="{.}"> {.}
+			</do>
+		</form>
+	</html>
+
+Lets see what happens if the data is more structured. The notices now has a level, text and a link for more details.
+We just change the substitution to use variable.path 
+
+We havent shown what kind of data structure the notices is passed as but dotted paths work with lists, dicts, and objects,
+and if the key isn't found, its just empty (more on empty).
+
+Notice how the empty if came in handy again!
+
+	<html>
+		<h1>Hello {name}<h1>
+		<p if>
+			Your emergency contact number is: {number}
+			<else>
+			Please set an emergency contact number!
+		</p>
+		<li>
+			<ul class="{.level}" for="notices">{.text}
+				<div class="more-info" if>
+					<a href="{.url}">Additional information</a>
+				</div>
+			<ul>
+		</li>
+		<form>
+			Rate our service!
+			<do for="1...5">
+				<input type="radio" name="rating" value="{.}"> {.}
+			</do>
+		</form>
+	</html>
+
+Thats it! Dive in further:
+
+* more data, more loops, set
+
+* calls, defs, modules
+
+* params, inheritence
+
+* magic placeholders
+
+* Gotchas
+
+* Tag combos
+
+* Quoting and context within your HTML doc
+
+
+
+* how to run it
+
+* how does it compare
+
+More on....
+
+Empty... python is NOne JS null... doing things on empty propogates
+
+---------------------------
+
+More data, more loops. 
+
+Ok, we need labels for the radio buttons. Lets add set a local variable. Then we look up the number.
+If its not found, then nothing is inserted -- expression paths don't fail on missing values.
+
+Lets add another tag: set="". This will take the tag, after execution of the for, if etc, and
+set a local variable. Theres also a filter -- set="" requires |tag or |contents.
+
+For the sake of a scenario, lets say we've decided to nag people about 
+their number in the footer, too; we're referencing our variable like it was passed in.
+
+<html>
+	<h1>Hello {name}<h1>
+	<p set="chide|tag" if>
+		Your emergency contact number is: {number}
+		<else>
+		Please set an emergency contact number!
+	</p>
+	
+	<li>
+		<ul class="{.level}" for="notices">{.text}
+			<div class="more-info" if>
+				<a href="{.url}">Additional information</a>
+			</div>
+		<ul>
+	</li>
+	
+	{labels = {1: "(Needs work)", 5: "(Fantastic)"}; }
+	<form>
+		Rate our service!
+		<do for="5...1">
+			<input type="radio" name="rating" value="{.}"> {.} {labels[.]}
+		</do>
+	</form>
+	
+	<hr>
+	{chide}
+	
+</html>
+
+Calls, defs
+
+This is getting complicated. Lets move out some of the pieces using macros.
+The second file is called common.html so we can access the macros within using common::name.
+
+The def= tag defines a macro. Note that we moved the {labels = {..}} inside the macro.
+When it was outside the macro, it was a local var of the implicit html macro. Macros can 
+only access parameters that are passed in.
+
+We call a local function via {function()} and function from another template via {template::function()}
+
+<html>
+	<h1>Hello {name}<h1>
+	{chide(number)}	
+	<li>
+		<ul class="{.level}" for="notices">{.text}
+			<div class="more-info" if>
+				<a href="{.url}">Additional information</a>
+			</div>
+		<ul>
+	</li>
+	{rating()}	
+	<hr>
+	{chide(number)}
+</html>
+
+<html>
+	<h1>{title}</h1>
+
+	<p def="chide(number)" if>
+		Your emergency contact number is: {number}
+		<else>
+		Please set an emergency contact number!
+	</p>
+	
+	<form def="rating">
+		Rate our service!
+		{labels = {1: "(Needs work)", 5: "(Fantastic)"}; }
+		<do for="5...1">
+			<input type="radio" name="rating" value="{.}"> {.} {labels[.]}
+		</do>
+	</form>
+	
+</html>
+
+The use= tag + params = inheritence.
+
+We mentioned the top level tag was implicitly a macro. Specifically, if not other added, a def="html(*)" is assumed.
+The * means, add any parameters defined to the arguments.
+
+We could just call the template::html macro at the end, but a better way is the use="tag".
+That will find the local variables that correspond to the parameters of the template, 
+and pass them.
+
+Notice that our parameter isn't constrained to being used in a single place. Our base template is using it for the 
+title of the page, as well. In general you can use variables after they're defined, eg you can use variables from a 
+for loop 
+
+<html use="common::html">
+	<title set="footer|contents">Hello {name}</title>
+	{footer = chide(number); footer}
+	
+	<li>
+		<ul class="{.level}" for="notices">{.text}
+			<div class="more-info" if>
+				<a href="{.url}">Additional information</a>
+			</div>
+		<ul>
+	</li>
+	
+	{rating()}	
+	
+	<hr>
+	<footer set="footer|contents">{chide(number)}</footer>
+</html>
+
+<html def="html(*)">
+	<title param="title">{title}</title>
+	<h1>{title}</h1>
+	
+	<p def="chide(number)" if>
+		Your emergency contact number is: {number}
+		<else>
+		Please set an emergency contact number!
+	</p>
+	
+	<form def="rating">
+		Rate our service!
+		{labels = {1: "(Needs work)", 5: "(Fantastic)"}; }
+		<do for="5...1">
+			<input type="radio" name="rating" value="{.}"> {.} {labels[.]}
+		</do>
+	</form>
+	
+	<footer param="footer">
+		<hr>
+		{footer}
+	</footer>
+</html>
+
+More shortcuts! 
+
+param and set will default to their tag names.
+
+param will set '.' to be the value of the parameter.
+
+<html use="common::html">
+	<title set>Hello {name}</title>
+	{chide(number)}
+	
+	<li>
+		<ul class="{.level}" for="notices">{.text}
+			<div class="more-info" if>
+				<a href="{.url}">Additional information</a>
+			</div>
+		<ul>
+	</li>
+	
+	{rating()}	
+	<footer set>{chide(number)}</footer>
+</html>
+
+<html>
+	<title param>{.}</title>
+	<h1>{.}</h1>
+	
+	<p def="chide(number)" if>
+		Your emergency contact number is: {number}
+		<else>
+		Please set an emergency contact number!
+	</p>
+	
+	<form def="rating">
+		Rate our service!
+		{labels = {1: "(Needs work)", 5: "(Fantastic)"}; }
+		<do for="5...1">
+			<input type="radio" name="rating" value="{.}"> {.} {labels[.]}
+		</do>
+	</form>
+	
+	<footer>
+		<hr>
+		{.}
+	</footer>
+</html>
+
+From now on we'll ignore common. Lets introduce placeholders. We want to put some content at the
+top to the page (the chide) that we calculate later. Ok, this could be solved in other ways! But 
+its a good introduction point.
+
+* Placeholders make a function. 
+* When called, they put the parameter back where the placeholder was created.
+* Star placeholders return their argument so they can be inlined
+* BTW -- there's another way to avoid showing an expression result
+
+Lets introduce increment placeholders next.
+
+<html use="common::html">
+	<title set>Hello {name}</title>
+	{*:lede}
+
+	<li>
+		<ul class="{.level}" for="notices">{.text}
+			<div class="more-info" if>
+				<a href="{.url}">Additional information</a>
+			</div>
+		<ul>
+	</li>
+	
+	{rating()}	
+	<footer set>{chide(number); result}</footer>
+	<do set="dontshow">{lede(result)}</do>
+
+    <!-- inlined -->
+	<footer set>{lede{chide(number)}</footer>
+
+    <!-- hide expression result -->
+	<footer set>{chide(number)}</footer>
+	{lede(footer); ""}
+</html>
+
+Ok. Increent placeholders work somewhat similarly... you can also access the 
+count in further logic.
+
+Also: regexes! and ternary operator! The synx allows regexes, and other comparisons 
+in the if="" and with the ternary only -- this isn't as general as other languages.
+
+We're also calling the lede() via use="". use="" will set . to be the result of the 
+whole tag. Thats what placeholders have as their parameter name by default.
+
+<html use="common::html">
+	<title set>Hello {name}</title>
+	{*:lede}
+
+	<li>
+		{++:num} notices total / {++:numwarn} warning notices
+		<ul class="{.level}" for="notices">{.text}
+			{num(); numwarn(.level ~ /warning|error/ ? 1 : 0)}
+			<div class="more-info" if>
+				<a href="{.url}">Additional information</a>
+			</div>
+		<ul>
+		<p use="lede" if="numwarn > 3">Multiple notices need your attention!</p>
+	</li>
+	
+	{rating()}	
+	<footer set>{lede(chide(number))}</footer>
+</html>
+
+It's not all unicorns and rainbows! There are some gotchas we should bring up, especially 
+about placeholders.
+
+Placeholders don't "hold open" your set and will leak outside your if. Compiler should warn about 
+this.
+
+Lots of tags together can get pretty confusing. 
+
+The shortcuts can get out of hand... we're showing a few more, for and def.
+
+Lets look at how that expands!
+
+<html use="common::html">
+	<title set>Hello {name}</title>
+	{*:lede}
+
+	<li>
+		<!-- not working -->
+		{++:num} notices total / <do if="numwarn">{++:numwarn} warning notices</do>
+
+		<!-- not working -->
+		{++:num} notices total / <do set="numwarn">{++:numwarn} warning notices</do>
+		<ul class="{.level}" for="notices">{.text}
+			{num(); numwarn(.level ~ /warning|error/ ? 1 : 0)}
+			<div class="more-info" if>
+				<a href="{.url}">Additional information</a>
+			</div>
+		<ul>
+		<p use="lede" if="numwarn > 3">Multiple notices need your attention!</p>
+	</li>
+	
+	<!-- extreme shortcuts, extreme  -->
+	<p for if use="wtf" def set param>hello!{.}</p>
+	
+	<do param="p">
+		<do set="."> <!-- implied by the param -->
+			<do def="p(p)">
+				<do use="wtf(*)">
+					<do set="."> <!-- implied by the use -->
+						<do set="p">
+							<do for=". in .">
+								<p if>hello!{.}</p>
+							</do>
+							<!-- at this point, . is the last item in the loop -->
+						</do>
+						<!-- at this point, p will be all of the <p> tags that weren't empty.-->
+					</do>
+					<!-- at this point, dot will be empty (set removes the content from the stream)-->
+					<!-- now wtf is evaluated and the parameters matched up. It may just get ., it may get p -->
+				</do>
+				<!-- and at this point, the result of the 'wtf' is in the output of the p() macro and we're about to return-->
+			</do>
+		</do>
+		<!-- at this point, dot will be empty (def also removes content from stream) -->
+	</do>
+	<!-- finally, at this point, local variable p is set again, with the coup de farce: the local variable shadows the def! -->
+	
+	{rating()}	
+	<footer set>{lede(chide(number))}</footer>
+</html>
+
+Combo breaker....
+
+These combos DO work well together:
+
+def + use + param (with name) + for + if
+
+param + set (with name) + for + if
+
+<html>
+
+	<!-- given a list, format it, pass to func, and return the result -->
+	<p def use="func" param="name" for if>...</p>
+	
+	<!-- slightly expanded -->
+	<p def="p(name)" use="func" for=". in name" if>...</p>
+
+	<!-- define a param, presumably expecting a list, then format it and set name with the result -->
+	<p param set for if></p>
+
+</html>
+
+Quoting and content
+
+<html>
+	<!-- comment - not even sent with document-->
+	<!--[ comment that is sent ]-->
+	<!--- comment that is sent -/-->
+	<!--- No {substitution in comments} -->
+	{{double mustache -> not a substitution}}
+
+	<a onclick="alert('Hello {name}')">Hello!</a>
+	
+	<a href="http://www.example.com/{name}?n={number}">Hello!</a>
+	
+	<script>
+	</script>
+	
+</html>
+
+Warnings/lint/reformat
+
+Stdin processor
+
+Reference
+	* Ranges
+		n...m includes m, n..m does not. m..n and m...n
