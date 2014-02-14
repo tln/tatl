@@ -75,6 +75,10 @@ class ExprSemantics(ExprParser.ExprParser):
     def star(self, ast):
         type, name = ast
         return self.c.star(type, name)
+        
+    def starexp(self, ast):
+        star, expr = ast
+        return star + expr
 
     def filtexp(self, ast):
         result = str(ast.expr)
@@ -83,6 +87,7 @@ class ExprSemantics(ExprParser.ExprParser):
         return result
 
     def set(self, ast):
+        #TODO ast.op ?= =?
         return self.c.assign(ast.lvar, ast.expr)
 
     def dottedPath(self, ast):
@@ -110,8 +115,7 @@ class ExprSemantics(ExprParser.ExprParser):
     def map(self, ast):
         if ast == ['{', '}']:
             return '{}'
-        else:
-            return '{%s}' % ', '.join(ast)
+        return self._join_with_star(ast, '{%s}', ', ', 'merge(%s)')
 
     def member(self, ast):
         key = repr(str(ast.nkey)) if ast.nkey else ast.skey
@@ -136,9 +140,25 @@ class ExprSemantics(ExprParser.ExprParser):
 
     def list(self, ast):
         if ast == ['[', ']']: return '[]'
-        if isinstance(ast[-1], list):
-            ast[-1] = ''.join(ast[-1])
-        return '[%s]' % ', '.join(ast)
+        return self._join_with_star(ast, '[%s]', '+', '%s')
+        
+    def _join_with_star(self, ast, paren, join, outer):
+        parts = []
+        expr = []
+        for p in ast:
+            if p[:1] == '*':
+                if expr:
+                    parts.append(paren % ', '.join(expr))
+                    expr = []
+                parts.append(p[1:])
+            else:
+                expr.append(p)
+        if expr:
+            parts.append(paren % ', '.join(expr))
+        if len(parts) == 1:
+            return parts[0]
+        else:
+            return outer % join.join(parts)
 
     def call(self, ast):
         return '%s(%s)' % (ast.fn, ', '.join(ast.arg or []))
@@ -197,5 +217,3 @@ class ExprSemantics(ExprParser.ExprParser):
 
     def paramExpr(self, ast):
         return ast
-        
-        
