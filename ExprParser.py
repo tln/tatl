@@ -12,7 +12,7 @@ from __future__ import print_function, division, absolute_import, unicode_litera
 from grako.parsing import * # @UnusedWildImport
 from grako.exceptions import * # @UnusedWildImport
 
-__version__ = '14.045.20.39.02'
+__version__ = '14.046.21.49.07'
 
 class ExprParser(Parser):
     def __init__(self, whitespace=None, nameguard=True, **kwargs):
@@ -50,6 +50,7 @@ class ExprParser(Parser):
             with self._option():
                 self._token('use="')
                 self._useExpr_()
+                self.ast['@'] = self.last_node
                 self._token('"')
             with self._option():
                 self._top_()
@@ -69,16 +70,6 @@ class ExprParser(Parser):
             self._token('=')
             self._expr_()
             self.ast['result'] = self.last_node
-
-    @rule_def
-    def _setExpr_(self):
-        self._set_()
-        self.ast.add_list('set', self.last_node)
-        def block1():
-            self._token(';')
-            self._set_()
-            self.ast.add_list('set', self.last_node)
-        self._closure(block1)
 
     @rule_def
     def _arglist_(self):
@@ -105,6 +96,10 @@ class ExprParser(Parser):
                 self._token('*')
                 self.ast['@'] = self.last_node
             self._error('expecting one of: *')
+
+    @rule_def
+    def _setExpr_(self):
+        self._lvar_()
 
     @rule_def
     def _forExpr_(self):
@@ -645,13 +640,13 @@ class ExprSemantics(object):
     def defExpr(self, ast):
         return ast
 
-    def setExpr(self, ast):
-        return ast
-
     def arglist(self, ast):
         return ast
 
     def arg(self, ast):
+        return ast
+
+    def setExpr(self, ast):
         return ast
 
     def forExpr(self, ast):

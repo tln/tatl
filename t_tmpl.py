@@ -1,6 +1,7 @@
 # API for runtime
 from cgi import escape as _escape
 import json, re
+from collections import namedtuple as _namedtuple
 
 def load(template):
     import t_compile, os
@@ -90,7 +91,7 @@ class _Context(object):
     def popctx(self):
         self.quote = self.cstack.pop()
         
-    def _none(self):
+    def _none(self, arg):
         self.qstack[-1] = 1
         return ''
     def push(self):
@@ -118,7 +119,7 @@ class _Context(object):
         
     def elidestart(self):
         self.qstack.append(0)
-        return self.push
+        return self.push()
 
     def elidecheck(self):
         c, e = self.pop()
@@ -186,6 +187,12 @@ class _Context(object):
         else:
             return (d[obj.__class__](obj) for obj in obj)
 
+    def buildtag(self, tag, attrs):
+        contents, emit = self.pop()
+        return Tag(tag, attrs, contents), emit
+
+class Tag(_namedtuple('Tag', 'tag attrs contents')):
+    pass
 
 def _get1(o, p):
     try:

@@ -193,16 +193,7 @@ class ExprSemantics(ExprParser.ExprParser):
         return self.c.funcdef(ast.name, ast.args, ast.filter or [])
         
     def setExpr(self, ast):
-        f = ast.filter or []
-        tag = 'tag' in f
-        contents = 'contents' in f
-        if not f or not (tag or contents):
-            raise SyntaxError('set="" must include |tag or |contents as a filter')
-        if tag and contents:
-            raise SyntaxError('set="" cannot include both |tag and |contents as a filter')
-        if tag: f.remove('tag')
-        if contents: f.remove('contents')
-        return self.c.set(ast.name, ast.filter or [], contents)
+        return ast
 
     def ifExpr(self, ast):
         return self.c.if_stmt(ast)
@@ -217,3 +208,10 @@ class ExprSemantics(ExprParser.ExprParser):
 
     def paramExpr(self, ast):
         return ast
+        
+    def useExpr(self, ast):
+        # step, path, arglist
+        return ast
+        
+    def callargs(Self, ast):
+        return ''.join(ast)

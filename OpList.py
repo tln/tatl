@@ -1,13 +1,18 @@
 from collections import namedtuple
 import re
 
-    
+
 class I: indent = 1
-class D: indent = -1
+class D: dedent = 1
+
+used = set()
+all = set()
+alias = []
 
 class OpBase:
     _fields = []
     indent = 0
+    dedent = 0
     
     @property
     def name(self):
@@ -60,27 +65,35 @@ class OpType:
   
 assert OpType.mk()()
    
+def join(fn):
+    return lambda *args, **kw: '\n'.join(fn(*args, **kw))
+    
 class OpList:
     def __init__(self):
         self.lists = [[] for t in self.op_types]
         for (i, t) in enumerate(self.op_types):
             t.listix = i
 
+        for k in dir(self.__class__):
+            if re.match('_[A-Z]', k) and k[1:] not in used:
+                v = getattr(self, k)
+                if not isinstance(v, str): all.add(k[1:])
+        
+
     def __getattr__(self, op, _p=re.compile('[A-Z][A-Z0-9]*$').match):
         if _p(op) is None: raise AttributeError(op)
         cls = getattr(self, '_'+op)
         while isinstance(cls, str):
             # alias
-            print op, 'alias ->', cls
+            alias.append('%s -> %s' % (op, cls))
             op = cls
             cls = getattr(self, '_'+op)
-            
+        used.add(op)
         dest = self.lists[cls.listix]
         def fn(*args):
             o = cls(*args)
             r = o.init(self)
             if r is None: 
-                print op, "-> nothing"
                 return
             for o in r: 
                 #NB o.init may cause insertions between iterations
@@ -102,10 +115,18 @@ class OpList:
                     import pdb
                     pdb.post_mortem()
 
+    @join
+    def view(self):
+        for l in self.lists:
+            for op in l:
+                yield '%2d %s' % (op.indent-op.dedent, op)
+
+    @join
     def out(self):
         i = 0
         for l in self.lists:
             for op in l:
+                i -= op.dedent
                 yield '    '*i + op.code()
                 i += op.indent
     
@@ -113,7 +134,7 @@ class OpList:
         assert self.op_types == ir.op_types
         for l1, l2 in zip(self.lists, ir.lists):
             l1.extend(l2)
-
+            
 class SampleIR(OpList):
     class Pre(OpType):pass
     class Post(OpType):pass
@@ -174,15 +195,10 @@ class Peepholer:
         runs = self.find_runs()
         ofs = 0
         for start, end in runs:
-            print 'run:', (start, end), ofs, self.ops[start-ofs:end-ofs]
             new = self.optimize_run(self.ops[start-ofs:end-ofs])
-            if new is None:
-                print 'No optimization'
-            else:
+            if new is not None:
                 self.ops[start-ofs:end-ofs] = new
-                print '->', new
                 ofs += (end - start) - len(new)
-                print 'ofs ->', ofs
                 
     def optimize_run(self, ops):
         pass
@@ -206,7 +222,7 @@ class Peepholer:
         return runs
  
  
-class StartEndPeepholer(Peepholer):
+class OldStartEndPeepholer(Peepholer):
     start = OpBase
     end = OpBase   # valid if next op (or last op if also in cls) is this run
     def filt(self, op, cur):
@@ -218,7 +234,25 @@ class StartEndPeepholer(Peepholer):
     def valid_run(self, run):
         start, end = run
         return isinstance(self.ops[end-1], self.end) or isinstance(self.ops[end], self.end)
-    
+
+class StartEndPeepholer(Peepholer):
+    start = OpType.mk()
+    middle = OpBase
+    end = OpType.mk()
+    def find_runs(self):
+        runs = []
+        start = None
+        for ix, op in enumerate(self.ops):
+            if start is None:
+                if isinstance(op, self.start):
+                    start = ix
+            elif isinstance(op, self.end):
+                runs.append((start, ix+1))
+                start = None
+            elif not isinstance(op, self.middle):
+                start = None
+                # migt miss here
+        return runs
     
 if __name__ == '__main__':
     ir = SampleIR()

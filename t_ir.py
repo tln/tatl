@@ -1,5 +1,5 @@
 from OpList import *
-
+from cgi import escape  # for pre-quoting
 
 class Pre(OpType):pass
 class Post(OpType):pass
@@ -33,41 +33,16 @@ class IR(OpList):
         
         ir = self.lists[1]
         CombineC(ir).optimize()
-        HoistQuote(ir).optimize()
-        CombineEmits2(ir).optimize()
+        CombineU(ir).optimize()
+        CombineEmitsFmt(ir).optimize()
+        StaticAttrs(ir).optimize()
+        #HoistQuote(ir).optimize()
         
         self.check()
         return
         
-        # old code
-      
-        lop = lopn = lix = None
-        ir = self.lists[1]
-        for ix, op in enumerate(ir):
-            if op == None:
-                continue
-            opn = op.name
-
-            # C C -> C
-            if opn == 'C' and lopn == 'C':
-                op.val = lop.val + op.val
-                ir[lix] = None
-
-
-            lix, lop, lopn = ix, op, opn
-            
-            
-            
-        self.lists[1] = filter(None, ir)
-        self.check()
-        
     def finish(self):
         self.peephole()
-        print 'finished!'
-
-    def join(self):
-        return '\n'.join(self.out())
-
     
     _FL = 'FILT'
     class _FILT(PreExpr):  # FL FiLter (decorator)
@@ -116,8 +91,22 @@ class IR(OpList):
     class _RET(Post0):  # D Def return done
         'return _.result()'
 
-    class _C(Val):                  # C Constant
+    class _T(In.mk('val', 'quoted')):    # T -> C Constant or U Unquoted
+        def init(self, ir):
+            if self.quoted:
+                ir.C(escape(self.val))
+            else:
+                ir.U(self.val)  
+    class _C(Val):                  # C Pre-quoted Constant
         '_emit(%r)'
+    class _U(Val):                  # C Unquoted Constant (eg for building attr)
+        '_emit(%r)'
+    class _V(In.mk('expr', 'quoted')):    # V -> QE or UE
+        def init(self, ir):
+            if self.quoted:
+                ir.QE(self.expr)
+            else:
+                ir.UE(self.expr)
     class _QE(EmitQ, Expr):             # QE Quoted Expression
         '_emit(_q(%s))'
     class _QV(EmitQ, Var):              # QV Quoted local Var
@@ -133,7 +122,7 @@ class IR(OpList):
         '_emit.__self__[999999:] = (%s)'
         def code(self):
             return self.__doc__ % ', '.join(self.vars)
-    class _EMITTRICK2(In.mk('fmt', 'vars')):
+    class _EMITFMT(In.mk('fmt', 'vars')):
         '_emit(%r %% (%s))'
         def code(self):
             return self.__doc__ % (self.fmt, ', '.join(self.vars))
@@ -141,18 +130,17 @@ class IR(OpList):
     _LS = 'SETSTART'
     class _SETSTART(Op0):                 # LS Local (set) start
         '_emit = _.push()'
-    class _SETEND(In.mk('var', 'filts')):
-        def init(self, ir):
-            if self.filts:
-                expr = '_content'
-                for f in filts: expr = '%s( %s )' % (f, expr)
-                ir.SETENDEXPR(self.var, expr)
-            else:
-                ir.SETENDVAR(self.name)
-    class _SETENDVAR(Var):                # LD Local (set) Done
-        '%s, _emit = _.pop()'
-    class _SETENDEXPR(VExpr):                # LD Local (set) Done
-        '_content, _emit = _.pop(); %s = %s'
+    class _SETEND(In.mk('var', 'tag')):
+        '%s, _emit = _.buildtag(%r, _attrs)'
+    class _STARTATTRS(In.mk('attrs')):
+        '_attrs = %r'
+    class _STARTATTR(Op0):
+        '_emit = _.push()'
+    class _ENDATTR(In.mk('attr')):
+        '_attrs[%r], _emit = _.pop()'
+    class _ENDATTRS(Op0):
+        '#end attrs'
+    
     class _LD2(VExpr):              # LD2
         '%s = %s'
 
@@ -179,64 +167,58 @@ class IR(OpList):
     class _ENDFOR(D, Op0):                 # FD for loop done
         '#end for'
 
-
     _IS = 'IFSTART'
     class _IFSTART(I, Op1):                 # IS If start
         'if %s:'
     class _IFEND(D, Op0):                 # IS If start
         '#end if'
-    class _ELSE0(D, Op0):
-        '#else'
-    class _ELSE(I, Op0):
+    class _ELSE(D, I, Op0):
         'else:'
-        def init(self, ir):
-            ir.ELSE0()
-            yield self
-    class _ELIF(I, Expr):
+    class _ELIF(D, I, Expr):
         'elif %s:'
-        def init(self, ir):
-            ir.ELSE0()
-            yield self
         
-    class _SS(Op1):                 # SS Skip (elide) start
+    class _ELIDESTART(Op0):                 # SS Skip (elide) start
         '_emit = _.elidestart()'
-    class _IE1(Op1):                # IE Else (otherwise)
-        'else:'    
-    class _IE2(D, Op1):             #dedent'
-        'else:'
-    class _II1(Op1):                # II Else if
-        '    '
-    class _II2(D, Op1):             #dedent'
-        'elif %s:'
-    class _SE(Op1):                 # SE Skip (elide) end
-        '_noelide, _content, _emit = _.elidestart()'
-    # then IS, QV
-    class _ID(Op1):                 # ID If end
-        '#dedent'
-    class _CS(Op1):                 # CS Call (use) start
+    class _ELIDEEND(Op0):                 # SE Skip (elide) end
+        '_noelide, _content, _emit = _.elidecheck()'
+        def init(self, ir):
+            yield self
+            ir.IFSTART('_noelide')
+            ir.UV('_content')
+
+    class _USESTART(Op0):                 # CS Call (use) start
         '_emit = _push()'
-    class _CD1(Op1):                # CD1,2 Call done
+    class _USEEND(In.mk('expr', 'arglist')):
+        def init(self, ir):
+            ir.USEEND0()
+            if self.arglist:
+                ir.USEENDARGS(self.expr, self.arglist[1:-1])
+            else:
+                ir.USEENDAUTO(self.expr)
+    class _USEEND0(Op0):
         'dot, _emit = _.pop()'
-    class _CD2(Op1): 
-        '_emit(_.apply(%s, locals()))'
-    class _P1(Op1):                 # P1 Param (set dot)
-        'dot = %s'
-    class _P2(Op1):                 # P2 Params (do not set dot)
-        ''
-    class _PY(Op1):                 # PY arbitrary python
+    class _USEENDAUTO(Op1):                # CD1,2 Call done
+        '_emit(_.applyauto(%s, locals()))'
+    class _USEENDARGS(In.mk('expr', 'arglist')):        # USEENDARGS
+        '_emit(_.applyargs(%s, %s))'
+
+    _PY = 'SET'
+    class _SET(Op1):                 # Assignment
         '%s'
-    
-    # *
-    # ++
-    
+
     # LS C LF -> LC    
     # QV1 QV1 QV1 -> QQ UV UV UV
 
 class CombineC(Peepholer):
     cls = IR._C
     def optimize_run(self, ops):
-        ops[-1].val = ''.join([op.val for op in ops])
+        v = ''.join([op.val for op in ops])
+        if not v: return []
+        ops[-1].val = v
         return ops[-1:]
+
+class CombineU(CombineC):
+    cls = IR._U
 
 class CombineEmits(Peepholer):
     cls = (Emit, IR._C)
@@ -250,27 +232,27 @@ class CombineEmits(Peepholer):
         op = IR._EMITTRICK1(exprs)
         return [op]
 
-class CombineEmits2(Peepholer):
-    cls = (Emit, IR._C)
+class CombineEmitsFmt(Peepholer):
+    cls = (Emit, IR._C, IR._U)
     def optimize_run(self, ops):
         if len(ops) < 2: return
         fmt = ''
         exprs = []
         for op in ops:
-            if op.name == 'C':
+            if op.name in ('U', 'C'):
                 fmt += op.val.replace('%', '%%')
             else:
                 fmt += '%s'
                 exprs.append(op.code()[6:-1]) # strip off _emit( )
 
-        # gross...
-        op = IR._EMITTRICK2(fmt, exprs)
+        expr = '%r %% (%s)' % (fmt, ', '.join(exprs))
+        op = IR._UE(expr)
         return [op]
 
 
 class HoistQuote(StartEndPeepholer):
     start = IR._FOR2   # s/bFor
-    cls = (EmitQ, IR._C, EmitU)
+    middle = (EmitQ, IR._C, EmitU)
     end = IR._ENDFOR
     
     def optimize_run(self, ops):
@@ -293,6 +275,43 @@ class HoistQuote(StartEndPeepholer):
         #pdb.set_trace()
         return StartEndPeepholer.find_runs(self)
 
+class StaticAttrs(StartEndPeepholer):
+    start = IR._STARTATTRS
+    middle = OpType
+    end = IR._ENDATTRS
+    
+    def optimize_run(self, ops):
+        # Look for sub runs of STARTATTR, something, ENDATTR 
+        # Move the U.val or UE.expr into STARTATTR
+        result = []
+        attrs = ops[0].attrs
+        ix = 0
+        end = len(ops)-3
+        wraps = {'U': unicode, 'UE': Lit}
+        while ix <= end:
+            op = ops[ix]
+            if op.name != 'STARTATTR': 
+                result.append(op)
+                ix += 1
+                continue
+            op1 = ops[ix+1]
+            op2 = ops[ix+2]
+            if op2.name == 'ENDATTR': 
+                wrap = wraps.get(op1.name)
+                if wrap:
+                    attrs[op2.attr] = wrap(op1[0])
+                    ix += 3
+                    continue
+                
+            result += [op, op1, op2]
+            ix += 3
+        if attrs:
+            # We only did something if attrs changed
+            return result
+
+class Lit(unicode):
+    def __repr__(self):
+        return self               
 
 if __name__ == '__main__':
     ir = IR()

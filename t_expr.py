@@ -1,4 +1,4 @@
-import ExprParser, ExprSemantics
+import ExprParser, ExprSemantics, t_compile, t_ir, OpList, t_tmpl
 import json
 import os, sys, re
 import readline
@@ -15,13 +15,17 @@ def compile():
     global parser, touch
     if touch < mtime():
         if raw_input('Restart?') == 'y':
-            os.execl(sys.executable, *([sys.executable]+sys.argv))
+            os.execl(sys.executable, *([sys.executable]+sys.argv[:1]+[rule, out]))
         else:
             touch = mtime()
     if mtime('Expr.ebnf') > mtime('ExprParser.py'):
         os.system("grako -o ExprParser.py Expr.ebnf")
         reload(ExprParser)
     reload(ExprSemantics)
+    reload(OpList)
+    reload(t_ir)
+    reload(t_tmpl)
+    reload(t_compile)
     coder = ExprSemantics.Coder()
     parser = ExprParser.ExprParser(
         parseinfo=parseinfo, 
@@ -48,7 +52,7 @@ def runtests():
     ofs = len(fmt%(1,'',''))
     for i, test in enumerate(tests):
         try:
-            result = str(parser.parse(test, rule_name=rule))
+            result = str(run(test))
         except Exception, e:
             result = 'ERROR: ' + str(e)
         n = maxlen+ofs
@@ -57,11 +61,11 @@ def runtests():
         print fmt % (i+1, test.ljust(maxlen), result)
     print
 
-settest_inp = re.compile('>(\d+)?\s*([+-=]\s*)(.*)')
+settest_inp = re.compile('>(\d+)?\s*([+-=])\s*(.*)')
 def settest(m):
     global tests
     ix, op, test = m.groups()
-    if not ix: 
+    if not ix:
         if op == '-':
             print "Specify a number"
             return
@@ -91,8 +95,7 @@ def getTerminalSize():
     def ioctl_GWINSZ(fd):
         try:
             import fcntl, termios, struct, os
-            cr = struct.unpack('hh', fcntl.ioctl(fd, termios.TIOCGWINSZ,
-        '1234'))
+            cr = struct.unpack('hh', fcntl.ioctl(fd, termios.TIOCGWINSZ, '1234'))
         except:
             return
         return cr
@@ -113,10 +116,17 @@ def getTerminalSize():
         #except:
         #    cr = (25, 80)
     return int(cr[1]), int(cr[0])
-    
+
+def run(inp):  
+    if rule[:2] == 'c.':
+        return t_compile.compile(inp, '<py>', out=out)
+    else:
+        return parser.parse(inp, rule_name=rule, trace=trace)
+
+args = sys.argv[1:3]
+rule, out = args + ['attrs', 'py'][len(args):]
 parseinfo = False
 compile()
-rule = 'attrs'
 loadtests()
 trace=False
 print '>rule changes rulename'
@@ -126,16 +136,21 @@ print 'No input recompiles'
 e = None
 last = None
 while 1:
-    runtests()
+    #print OpList.all - OpList.used
     try:
         inp = raw_input(('[I]' if parseinfo else '')+('[T]' if trace else '')+rule+'>')
+        runtests()
         if settest_inp.match(inp):
             settest(settest_inp.match(inp))
             continue
         elif inp.startswith('>'):
-            rule = inp[1:]
-            loadtests()
-            continue
+            inp = inp[1:]
+            if inp.isdigit():
+                inp = tests[int(ix)-1]
+            else:
+                rule = inp
+                loadtests()
+                continue
         if inp.startswith('trace '):
             trace = bool(['off', 'on'].index(inp[6:]))
             continue
@@ -144,6 +159,10 @@ while 1:
             compile()
             print chr(27) + "[2J;"
             continue
+        if inp.startswith('out '):
+            out = inp[4:]
+        if inp == 'unused':
+            print t_
         if not inp:
             if e:
                 traceback.print_exc()
@@ -152,13 +171,11 @@ while 1:
             else:
                 compile()
                 continue
+        print '----'
+        print inp
         last = inp
-        ast = parser.parse(inp, rule_name=rule, trace=trace)
-        print('AST:')
+        ast = run(inp)
         print(ast)
-        print
-        print('JSON:')
-        print(json.dumps(ast, indent=2))
         print
         e = None
     except KeyboardInterrupt:

@@ -119,6 +119,9 @@ Thats it! Dive in further:
 
 * Quoting and context within your HTML doc
 
+* Comments and Front matter
+
+* Tag()
 
 
 * how to run it
@@ -465,11 +468,7 @@ param + set (with name) + for + if
 Quoting and content
 
 <html>
-	<!-- comment - not even sent with document-->
-	<!--[ comment that is sent ]-->
-	<!--- comment that is sent -/-->
-	<!--- No {substitution in comments} -->
-	{{double mustache -> not a substitution}}
+	{{}}
 
 	<a onclick="alert('Hello {name}')">Hello!</a>
 	
@@ -480,10 +479,25 @@ Quoting and content
 	
 </html>
 
+Comments and front matter.
+
+<!--{ ...front matter for doc... }-->
+<!-- comment - not even sent with document-->
+<html>
+<!--{ ...front matter for html macro... }-->
+<!--[ comment that is sent ]-->
+<!-- comment not sent -->
+<!--- No {substitution in comments} -->
+
+	<do def="foo()">
+		<!--{front matter for foo}-->
+	</do>
+</html>
+
 Warnings/lint/reformat
 
-Stdin processor
+Stdin processor?
 
 Reference
 	* Ranges
-		n...m includes m, n..m does not. m..n and m...n
+		n...m includes m, n..m does not. m..n and m...n are backwards versions of above.
