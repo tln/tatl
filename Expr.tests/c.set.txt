@@ -1,0 +1,4 @@
+<p set="a">hi</a>
+<p set="a" b="hi">hi</a>
+<p set="a" b="{b}">hi</a>
+<p set="a" c="&" d="&{d}" b="{b}">hi</a>
