@@ -19,7 +19,7 @@ def compile(s, source, out='py'):
             del root.attrs[attr]
     c.tag(root)
     if out[:2] == 'ir':
-        return c.module.funcnames[out[3:] or 'html'].view()
+        return '\n\n'.join([ir.view() for ir in c.module.ir])
     py =  c.module.join()
     if out == 'py':
         return py
@@ -120,14 +120,11 @@ class Module:
         ir.DEF(name, argl)
         ir.SETUP('attr')
 
-        f = Function(self, name, args, filters)
-        self.defs.append(f)
-
         if name in self.funcnames:
             warn("Macro %s already" % name)
         else:
             self.funcnames[name] = ir
-        return f, ir
+        return ir
         
     def global_name(self, name):
         return name in self.funcnames or name in self.modules or name in BUILTINS
@@ -199,32 +196,33 @@ class Function(Out):
                 
 class Compiler:
     def __init__(self, source):
-        self.out = self.module = Module(source)
+        self.module = Module(source)
         self.parser = ExprParser.ExprParser(
             parseinfo=True, 
             semantics=ExprSemantics.ExprSemantics(PyCoder(self.add_var, self.add_module, self.add_lvar))
         )
         self.tags = []
-        self.outs = []
+        self.lastir = []
+        self.ir = None
         
     def add_var(self, var):
         assert var != 'itervalues'
-        self.out.add_local(var)
         self.ir.VAR(var)
 
     def add_lvar(self, var):
-        return self.out.add_lvar(var)
-
+        #TODO
+        pass
+        
     def add_module(self, module):
         self.module.add_import(module)
         
     def startdef(self, name, args, filters):
-        self.outs.append(self.out)
-        self.out, self.ir = self.module.startdef(name, args, filters)
+        self.lastir.append(self.ir)
+        self.ir = self.module.startdef(name, args, filters)
         
     def enddef(self):
-        self.out = self.outs.pop()
         self.ir.finish()
+        self.ir = self.lastir.pop()
         
     def tag(self, tag):
         if tag.name == 'else':
@@ -270,7 +268,7 @@ class Compiler:
                 if attr == 'if' and not v:
                     self._process_elide(ts, '')
                 else:
-                    result = self.parser.parse(v, rule_name=attr+'Expr')
+                    result = self.parser.parse(v, rule_name=attr+'Attr')
                     getattr(self, '_process_'+attr)(ts, result)
             except AssertionError:
                 import traceback
@@ -328,27 +326,23 @@ class Compiler:
         self._finish_elide(ts)
         self.ir.add(ts.ir)
         if ts.ret:
+            self.ir.RET()
             self.enddef()
 
     def _finish_elide(self, ts):
         if ts.elide_pending:
-            self.out.add('_noelide, _content, _emit = _.elidecheck()')
-            self.out.add('if _noelide:', 1)
-            self.out.emit('_content')
             self.ir.ELIDEEND()
             ts.ir.IFEND()
             ts.dedent += 1
             ts.elide_pending = False
 
     def _process_elide(self, ts, result):
-        self.out.add('_emit = _.elidestart()')
         self.ir.ELIDESTART()
         ts.elide_pending = True
         
     def _process_def(self, ts, result):
         self.startdef(*result)
-        ts.ret = 'return _.result()'
-        ts.ir.RET()
+        ts.ret = True
 
     def _process_set(self, ts, var):
         self.ir.SETSTART()
@@ -360,16 +354,11 @@ class Compiler:
         self.ir.IFSTART(test)
         ts.if_pending = 1
         ts.ir.IFEND()
-
-        self.out.add('if %s:' % test, 1)
-        ts.dedent +=1 #old
         
     def _process_param(self, ts, v):
-        map(self.out.add_param, v)
         map(self.ir.PARAM, v)
         if len(v) == 1:
             self.add_lvar('dot')
-            self.out.add('dot = ' + v[0])
             self.ir.LE('dot', v[0])
 
     def _process_for(self, ts, obj):
@@ -382,9 +371,6 @@ class Compiler:
             n1, n2, expr = tup
             self.ir.FOR2(n1, n2, expr)
         ts.ir.ENDFOR()
-        
-        self.out.add(old, 1)
-        ts.dedent += 1
         
     def _process_use(self, ts, ast):
         map(self.ir.SET, ast.set or [])
@@ -408,7 +394,6 @@ class Compiler:
         endtags = ''.join(['</%s>' % t for t in tags])
         starttags = ''.join(['<%s>' % t for t in tags])
 
-        self.out.emit_s(endtags)
         self.ir.C(endtags)
         self._finish_elide(ts)
                      
@@ -416,18 +401,13 @@ class Compiler:
         if 'if' in attrs:
             test = self.parser.parse(attrs.pop('if'), rule_name='test')
             stmt = 'elif %s:' % test
-            self.out.dedent()
-            self.out.add(stmt, 1)
             self.ir.ELIF(test)
         else:
-            self.out.dedent()
-            self.out.add('else:', 1)
             self.ir.ELSE()
 
         if attrs:
             warn("Extraneous attributes on <else/>")
 
-        self.out.emit_s(starttags)
         self.ir.C(starttags)
 
         self._children(tag)
