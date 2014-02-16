@@ -1,8 +1,9 @@
 {1}
 <p for="a"/>                                         
 <p for="a in b"/>                                    
-<p for="a, b in d">{a}/{b}</p>                       
-<p if>{a}</p>                                        
+<p for="a, b in d">{a}/{b}</p>   
+<p for="var = expr; key in expr"></p>                  
+<p if>{a}</p>
 <p if>{e}</p>                                        
 <p if>{e}<else>e</p>                                 
 <p if="a">y</p><p if="0">?</p><p if="0">?<else>n</p>
@@ -10,4 +11,7 @@
 <p set="a" id="x" cls="{c} foo" src="&foo">h&i</a>   
 <p param="var"/>                                     
 <p param="var,var2"/>                                
-<p use="template::html(b+1)"/>                       
+<p use="template::html(b)"/>
+<p def='p(*)'>x</p>after
+<p def="name(arg) = expr">hello</p>
+<p def="name(arg) |filter">hello</p>
