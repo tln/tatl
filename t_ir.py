@@ -192,7 +192,7 @@ class IR(OpList):
         def init(self, ir):
             ir.USEEND0()
             if self.arglist:
-                ir.USEENDARGS(self.expr, self.arglist[1:-1])
+                ir.USEENDARGS(self.expr, self.arglist)
             else:
                 ir.USEENDAUTO(self.expr)
     class _USEEND0(Op0):

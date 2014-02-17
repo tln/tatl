@@ -2,7 +2,7 @@ import ExprParser, ExprSemantics, t_compile, t_ir, OpList, t_tmpl
 import json
 import os, sys, re
 import readline
-import traceback
+import traceback, pdb
 
 def varref(v): print 'varref:', v
 def modref(m): print 'modref:', m
@@ -26,10 +26,9 @@ def compile():
     reload(t_ir)
     reload(t_tmpl)
     reload(t_compile)
-    coder = ExprSemantics.Coder()
     parser = ExprParser.ExprParser(
         parseinfo=parseinfo, 
-        semantics=ExprSemantics.ExprSemantics(coder)
+        semantics=ExprSemantics.ExprSemantics()
     )
  
 
@@ -117,11 +116,17 @@ def getTerminalSize():
         #    cr = (25, 80)
     return int(cr[1]), int(cr[0])
 
-def run(inp):  
+def run(inp, debug=0):  
     if rule[:2] == 'c.':
+        if debug:
+            pdb.set_trace()
         return t_compile.compile(inp, '<py>', out=out)
     else:
-        return parser.parse(inp, rule_name=rule, trace=trace)
+        ExprSemantics.DEBUG = debug
+        ast = parser.parse(inp, rule_name=rule, trace=trace)
+        if hasattr(ast, 'out'):
+            return ast.out()
+        return ast  # warning?
 
 args = sys.argv[1:3]
 rule, out = args + ['attrs', 'py'][len(args):]
@@ -165,8 +170,12 @@ while 1:
             print t_
         if not inp:
             if e:
-                traceback.print_exc()
                 e = None
+                traceback.print_exc()
+                try: run(last, debug=1)
+                except:
+                    import traceback
+                    traceback.print_exc()
                 continue
             else:
                 compile()
@@ -183,5 +192,7 @@ while 1:
     except RuntimeError, e:
         print 'error:', repr(e), e
         analyze_cycles(sys.exc_info()[2])
+    except pdb.bdb.BdbQuit:
+        pass
     except Exception, e:
         print 'error:', repr(e), e

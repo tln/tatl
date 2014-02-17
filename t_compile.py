@@ -64,40 +64,6 @@ class PyIR(IR):
 
     
 
-class Out:
-    "Gathers the python code that forms the results"
-    def __init__(self):
-        self.lines = []
-        self.emits = []
-        self.indent = 0
-
-    def add(self, code, indent=0):
-        self.flush()
-        spaces = self.indent * INDENT
-        self.indent += indent
-        self.lines.append(spaces + code.replace('\n', '\n'+spaces))
-
-    def flush(self):
-        if self.emits:
-            x = repr(''.join(self.emits))
-            self.emits = []
-            self.emit(x)
-    
-    def dedent(self, dedent=1):
-        if dedent: 
-            self.flush()
-            self.indent -= dedent
-
-    def emit(self, expr):
-        self.add("_emit(%s)" % expr)
-
-    def emit_s(self, text):
-        self.emits.append(text)
-
-    def join(self):
-        self.flush()
-        return '\n'.join(self.lines)
-
 class Module:
     def __init__(self, source):
         self.source = source
@@ -110,14 +76,11 @@ class Module:
         self.modules.add(module)
         
     def startdef(self, name, args, filters):
-        argl = args.split(', ')
-        if argl and argl[-1][:2] == '**':
-            argl.pop()
-                
         ir = PyIR()
         self.ir.append(ir)
         map(ir.FILT, filters)
-        ir.DEF(name, argl)
+        
+        ir.DEF(name, args.args())
         ir.SETUP('attr')
 
         if name in self.funcnames:
@@ -199,7 +162,7 @@ class Compiler:
         self.module = Module(source)
         self.parser = ExprParser.ExprParser(
             parseinfo=True, 
-            semantics=ExprSemantics.ExprSemantics(PyCoder(self.add_var, self.add_module, self.add_lvar))
+            semantics=ExprSemantics.ExprSemantics()
         )
         self.tags = []
         self.lastir = []
@@ -341,8 +304,9 @@ class Compiler:
         ts.elide_pending = True
         
     def _process_def(self, ts, result):
-        self.startdef(*result)
-        ts.ret = True
+        Def = result
+        self.startdef(Def.name, Def.args, Def.filter)
+        ts.ret = Def.result
 
     def _process_set(self, ts, var):
         self.ir.SETSTART()
@@ -430,19 +394,22 @@ class Compiler:
             if ix > 0:
                 self.ir.T(text[:ix], quoted)
                 text = text[ix:]
-            (asgn, exprs, emit, star), text = self.parser.parse(text, rule_name='top')
+            Top = self.parser.parse(text, rule_name='top')
+            text = Top.rest
             
-            for lvar, expr in asgn:
+            for stmt in Top.set:
+                lvar = stmt.lvar.lvar
+                expr = stmt.expr.py
                 self.add_lvar(lvar)
                 self.ir.LVARE(lvar, expr)
-            map(self.ir.PY, exprs)
-            if star:
-                type, name = star
-                method = {'*': 'star', '++': 'plusplus'}[type]
-                self.add_lvar(name)
-                self.ir.LVARE(name, method)
-            if emit:
-                self.ir.V(emit, quoted)
+            for expr in Top.exprs:
+                self.ir.PY(expr.py)
+            if Top.emit:
+                if Top.emit.type == 'star':
+                    self.add_lvar(Top.emit.name)
+                    self.ir.LVARE(Top.emit.py)
+                else:
+                    self.ir.V(Top.emit.py, quoted)
             
             ix = text.find('{')
         self.ir.T(text, quoted)
@@ -450,67 +417,6 @@ class Compiler:
 def warn(s):
     print "Warning:", s
 
-
-class PyCoder(ExprSemantics.Coder):
-    def __init__(self, varref=lambda v:None, modref=lambda m:None, lvarref=lambda: None):
-        self.varref = varref
-        self.modref = modref
-        self.lvarref = lvarref
-
-    def assign(self, lvar, expr):
-        self.lvarref(lvar)
-        return (lvar, expr)
-        
-    def dotpath(self, args):
-        args[0] = 'dot'
-        return self.path(args)
-
-    def regex(self, regex, expr):
-        self.modref('re')
-        return 'bool(re.search(%r, %s))' % (regex, expr)
-
-    def path(self, args):
-        n = args.pop(0)
-        self.varref(n)
-        if len(args) == 1:
-            n = '_.get1(%s, %r)' % (n, args[0])
-        elif args:
-            n = '_.get(%s, %s)' % (n, args)
-        return n
-        
-    def lookup(self, path, key):
-        return '_.get1(%s, %s)' % (path, key)
-
-    def extpath(self, module, path):
-        return '_.load(%r, %s)' % (module, path)
-
-    def arglist(self, args):
-        args.append('**_kw')
-        return ', '.join(args)
-
-    def top(self, asgn, exprs, emit, star):
-        return asgn, exprs, emit, star
-         
-    def set(self, name, filter, contents):
-        return name, filter or [], contents
-
-    def funcdef(self, name, args, filters):
-        return name, args, filters
-        
-    def for2(self, n1, n2, rvar):
-        old = 'for %s, %s in _.items(%s):' % (self.lvarref(n1), self.lvarref(n2), rvar)
-        return (n1, n2, rvar), old
-        
-    def for1(self, n1, rvar):
-        old = 'for %s in _.iter(%s):' % (self.lvarref(n1), rvar)
-        return (n1, rvar), old
-
-    def for0(self, rvar):
-        return self.for1('dot', rvar)
-
-    def if_stmt(self, test):
-        return test
-        
 TESTS = '''
 <html>
 </html>

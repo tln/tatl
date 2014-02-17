@@ -135,7 +135,7 @@ class _Context(object):
             o = self.get1(o, p)
         return o    
 
-    def apply(self, func, locals):
+    def applyauto(self, func, locals):
         # Determine which names to provide and call!
         # Result is emitted directly
         if isinstance(func, (_Star, _Plusplus)):
@@ -144,6 +144,11 @@ class _Context(object):
             co = func.__code__
             argnames = co.co_varnames[:co.co_argcount]
         args = [locals.get(a) for a in argnames]
+        result = func(*args)
+        return result or ''
+
+    def applyargs(self, func, args):
+        # try/except?
         result = func(*args)
         return result or ''
 

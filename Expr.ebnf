@@ -1,3 +1,11 @@
+defAttr = defExpr $ ;
+forAttr = forExpr $ ;
+ifAttr = ifExpr $ ;
+paramAttr = paramExpr $ ;
+setAttr = setExpr $ ;
+useAttr = useExpr $ ;
+
+
 attrs = 'def="' @defExpr '"' 
 	| 'for="' @forExpr '"'
     | 'if="' @ifExpr '"' 
@@ -5,37 +13,39 @@ attrs = 'def="' @defExpr '"'
 	| 'set="' @setExpr '"' 
 	| 'use="' @useExpr '"' 
 	| top ;
-defExpr = name:NAME args:arglist {filter+:filter} ['=' result:expr];
+defExpr = name:NAME [args:arglist] ['=' result:expr] {filter+:filter} ;
 	arglist = '(' [@+:arg {',' @+:arg} [',']] ')' ;
 	arg = @NAME | @'*' ;
 setExpr = lvar ;
 forExpr = {set+:set ';'} [n1:lvar [',' n2:lvar] 'in'] expr:expr ;
-ifExpr = {set+:set ';'} @test ;
+ifExpr = {set+:set ';'} test:test ;
 paramExpr = @+:lvar {',' @+:lvar} ;
 useExpr = {set+:set ';'} path:path [arglist:callargs];
-	callargs = '(' [expr {',' expr} [',']] ')';
+	callargs = '(' [@expr {',' @expr} [',']] ')';
 
-top = '{' {set+:set ';'} (set+:set | ({exprs+:expr ';'} [emit:topemitexpr])) '}' ;
+top = '{' {set+:set ';'} (set+:(set|setif) | ({exprs+:expr ';'} [emit:topemitexpr])) '}';
 
-	set = lvar:lvar op:('='|'=?'|'?=') expr:expr ;
+	set = lvar:lvar '=' expr:expr ;
 		lvar = NAME ;
+	setif = var:NAME ('=?'|'?=') expr:expr ;
 
-	topemitexpr = star:starexp | filtexp:filtexp ;
+	topemitexpr = placeholder | filtexp ;
 		filtexp = expr:expr {filter+:filter} ;
 		filter = '|' (  @call | @path | @string) ;
-		starexp = @('*' | '++') ':' @NAME ;
+		placeholder = @('*' | '++') ':' @NAME ;
 
 
 	expr = ternary | range | simpleexpr;
 
 		ternary = test:test ('?' true:expr [':' false:expr] | '?:' false:expr);
-(*expr*)	test = regex | comp;
-				regex = expr:simpleexpr op:('~'|'!~'|'~!') re:REGEX ;
+(*expr*)	test = regex | comp ;   
+				regex = expr:simpleexpr op:('~!'|'!~'|'~') re:relit ;
+					relit = REGEX ;
 				comp = @+:simpleexpr ( {@+:compop @+:simpleexpr}+ 
 				                     | [@+:eqop @+:simpleexpr] 
 									 ) ;
-					eqop = '==' | '!=' ;
-					compop = '<=' | '=<' | '<' | '>=' | '=>' | '>';
+					eqop = '==' | '!=' | 'eq' | 'ne';
+					compop = 'le'|'ge'|'gt'|'lt'|'<='|'=<'|'<'|'>='|'=>'|'>';
 
 		range = simpleexpr (  '...' | '..' ) simpleexpr ;
 
@@ -55,7 +65,7 @@ top = '{' {set+:set ';'} (set+:set | ({exprs+:expr ';'} [emit:topemitexpr])) '}'
 
 
 (*expr*)	list = '[' [@+:(expr|starexp) {',' @+:(expr|starexp)} [',']]  ']' ;
-(*expr*)		starexp = '*' expr ;
+(*expr*)		starexp = '*' @expr ;
 
 			map = '{' [@+:(member|starexp) {',' @+:(member|starexp)}] '}' ;
 				member = ( nkey:NAME | skey:STRING) ':' val:expr ;

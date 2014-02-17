@@ -1,167 +1,311 @@
 import ExprParser
+from collections import namedtuple
+DEBUG=0
+class BasePart:
+    """Represents part of our AST. Renders early to py or js, keeps 
+    tracks of lvars and rvars of itself and children.
+    """
+    py = js = '*not implemented*'
+    def __init__(self):
+        self.lvars = []
+        self.rvars = []
+        
+    def add(self, part):
+        self.lvars.extend(part.lvars)
+        self.rvars.extend(part.rvars)
+        
+    def __str__(self):
+        #TODO remove
+        print 'str called -> %r' % self.py
+        return self.py
+        
+    def __repr__(self):
+        return '<%s>' % self.out().replace('\n', ' ')
+        
+    type = ''
+    def out(self):
+        l = []
+        if self.py == self.js:
+            l.append('py/js: '+self.py)
+        else:
+            l.append('py: '+self.py)
+            l.append('js: '+self.js)
+        line = ''
+        if self.type:
+            line += 'type: %s ' % self.type
+        if self.lvars:
+            line += 'lvars: %s ' % ','.join(self.lvars)
+        if self.rvars:
+            line += 'rvars: %s ' % ','.join(self.rvars)
+        line = line.rstrip()
+        if line:
+            l.append(line)
+        return '\n'.join(l)
+            
 
-class Coder(object):
-    # Encode things that may vary in syntax depending on how runtime
-    # and compiler works
-    def path(self, args):
-        return '.'.join(args)
+class Part(BasePart):
+    def __init__(self, pyfmt, jsfmt, *parts, **partkw):
+        BasePart.__init__(self)
+        pyfrags = {}
+        jsfrags = {}
+        for k, v in list(enumerate(parts)) + partkw.items():
+            self.add(v)
+            pyfrags[str(k)] = v.py
+            jsfrags[str(k)] = v.js
+        self.py = pyfmt % pyfrags
+        self.js = jsfmt % jsfrags
+        self.__dict__.update(partkw)
+      
+class List(BasePart):
+    def __init__(self, partlist, join=', '):
+        BasePart.__init__(self)
+        self.partlist = partlist
+        map(self.add, partlist)
+        self.py = join.join(p.py for p in partlist)
+        self.js = join.join(p.js for p in partlist)
 
-    def dotpath(self, args):
-        args[0] = 'dot'
-        return '.'.join(args)
+class Lvar(BasePart):
+    def __init__(self, lvar):
+        BasePart.__init__(self)
+        self.lvars = [lvar]
+        self.py = self.js = lvar
+        
+class Expr(BasePart):
+    def __init__(self, rvars, py, js=None):
+        BasePart.__init__(self)
+        self.py = py
+        self.js = js or py
+        self.rvars = rvars
+        
+class Value(BasePart):
+    def __init__(self, py, js=None):
+        BasePart.__init__(self)        
+        self.py = py
+        self.js = js or py
+ 
+ 
+class Wrap(BasePart):
+    def __init__(self, part):
+        BasePart.__init__(self)
+        self.add(part)
+        self.py = part.py
+        self.js = part.js
+        self.part = part
+class StarExp(Wrap):
+    type = 'starexp'
+ 
+class StarArg(BasePart):
+    py = js = '*star*'
+STAR_ARG = StarArg()
 
-    def extpath(self, module, path):
-        return '__import__(%r).%s' % (module, '.'.join(path))
+class Args(List):
+    def args(self):
+        return ['*' if p is STAR_ARG else p.lvar
+                for p in self.partlist]
 
-    def arglist(self, args):
-        return ', '.join(args)
+class Placeholder(BasePart):
+    type = 'placeholder'
+    def __init__(self, ast):
+        BasePart.__init__(self)
+        op, self.name = ast
+        self.type = {'*':'star','++':'plusplus'}[op]
+        self.py = self.js = '%s = _.%s()' % (self.name, self.type)
+        self.lvars = [self.name]
 
-    def regex(self, regex, expr):
-        return 'bool(re.search(%r, %s))' % (regex, expr)
-
-    def top(self, asgn, exprs, emitexpr, star):
-        if exprs:
-            asgn.extend(exprs)
-        if star:
-            type, name = star
-            if type == '++':
-                fn = 'lambda o, _n=[0]: _n[0]++' 
+class Out:
+    # mixin to namedtuples
+    def out(self):
+        l = []
+        for k in self._fields:
+            v = getattr(self, k)
+            if v and isinstance(v, list):
+                l += [('%s[%s]' % (k, ix), v.out() if hasattr(v, 'out') else str(v)) 
+                      for ix, v in enumerate(v)]
             else:
-                fn = 'lambda o, _a=reserve(): _a.append(quote(o))'
-            asgn.append('%s = %s' % (name, fn))
-        if emitexpr:
-            asgn.append('emit(%s)' % emitexpr)
-        return '\n'.join(asgn)
-        
-    def set(self, name, filter, contents):
-        result = '_.pop()'
-        for filt in filter or []:
-            result = '%s( %s )' % (filt, result)
-        return '%s = %s #%s' % (name, result, contents)
-           
-    def funcdef(self, name, args, filters):
-        lines = ['@'+filt for filt in filters] + ['def %s(%s):' % (name, args)]
-        return '\n'.join(lines)
-        
-    def if_stmt(self, test):
-        return 'if %s:' % test
-        
-    def for2(self, n1, n2, rvar):
-        return self.for1(n1+','+n2, 'items(%s)' % rvar)
-        
-    def for1(self, n1, rvar):
-        return 'for %s in %s:' % (n1, rvar)
+                v = v.out() if hasattr(v, 'out') else str(v)
+                l.append((k, v))
+        n = max(len(lbl) for lbl, val in l)
+        s = '\n' + ' '*n + '   '
+        return '\n'.join(
+            lbl.ljust(n)+' = '+val.replace('\n', s)
+            for lbl, val in l
+        )
 
-    def for0(self, rvar):
-        return self.for1('dot', rvar)    
-        
-    def assign(self, lvar, expr):
-        return '%s = %s' % (lvar, expr)
-        
-    def lookup(self, path, key):
-        return '%s[%s]' % (path, key)
-        
-    def star(self, type, name):
-        return type, name
-                
+
+class Def(namedtuple('Def', 'name args result filter'), Out): pass
+class If(namedtuple('If', 'set test'), Out): pass
+class Use(namedtuple('Use', 'set path arglist'), Out): pass
+class For(namedtuple('For', 'set stmt'), Out): pass
+class Top(namedtuple('Top', 'set exprs emit rest'), Out): pass
+
+def debug(retry):
+    def inner(*args, **kw):
+        try:
+            return retry(*args, **kw)
+        except:
+            if DEBUG:
+                import pdb
+                pdb.set_trace()
+                retry(*args, **kw)
+                assert not "reached"
+            raise
+    return inner
+ 
 class ExprSemantics(ExprParser.ExprParser):
     "Build Python code. Try to eval/compile early to catch issues as parse tree is built."
-    def __init__(self, coder):
-        self.c = coder
-        
-    def filter(self, ast):
-        return ast
-
-    def star(self, ast):
-        type, name = ast
-        return self.c.star(type, name)
+    def placeholder(self, ast):
+        return Placeholder(ast)
         
     def starexp(self, ast):
-        star, expr = ast
-        return star + expr
+        return StarExp(ast)
 
     def filtexp(self, ast):
-        result = str(ast.expr)
+        result = ast.expr
+        fmt = '%(0)s( %(1)s )'
         for filt in ast.filter or []:
-            result = '%s( %s )' % (filt, result)
+            result = Part(fmt, fmt, filt, result)
         return result
 
+    def setif(self, ast):
+        n = ast.lvar
+        fmt = '{0} = %(0)s {1} %(1)s'.format
+        return Part(fmt(n, 'or'), fmt(n, '||'), Expr([n], n, n), ast.expr)
+    
     def set(self, ast):
-        #TODO ast.op ?= =?
-        return self.c.assign(ast.lvar, ast.expr)
+        fmt = '%(lvar)s = %(expr)s'
+        return Part(fmt, fmt, lvar=ast.lvar, expr=ast.expr)
 
     def dottedPath(self, ast):
-        return self.c.path(ast)
+        return Expr([ast[0]], '.'.join(ast))
 
     def dotPath(self, ast):
-        return self.c.dotpath(ast)
+        ast[0] = 'dot'
+        return self.dottedPath(ast)
 
     def externalPath(self, ast):
-        return self.c.extpath(ast.module, ast.path)
+        return Expr([], '_.require(%r).%s' % (ast.module, '.'.join(ast.path)))
 
     def path(self, ast):
         if ast.lookup:
-            return self.c.lookup(ast.path, ast.lookup)
+            fmt = '%(0)s[%(1)s]'
+            return Part(fmt, fmt, ast.path, ast.lookup)
         return ast.path
 
     def number(self, ast):
-        eval(ast)
-        return ast
+        return Value(ast)
 
     def string(self, ast):
-        eval(ast)
-        return ast
+        return Value(ast)
         
     def map(self, ast):
         if ast == ['{', '}']:
-            return '{}'
-        return self._join_with_star(ast, '{%s}', ', ', 'merge(%s)')
+            return Expr([], '{}')
+        return self._join_with_star(ast, '{%(0)s}', ', ', 'merge(%(0)s)')
 
     def member(self, ast):
         key = repr(str(ast.nkey)) if ast.nkey else ast.skey
-        return '%s: %s' % (key, ast.val)
+        return Part('%(0)s: %(1)s', '%(0)s: %(1)s', Value(key), ast.val)
 
     def range(self, ast):
         arg1, op, arg2 = ast
-        if op == '...': arg2 += ' + 1'
-        return 'range(%s, %s)' % (arg1, arg2)
+        fmt = {
+            '..': 'range(%(0)s, %(1)s)', 
+            '...':'range(%(0)s, %(1)s+1)'
+        }[op]
+        return Part(fmt, fmt, arg1, arg2)
+
+    def eqop(self, op):
+        return {
+            'eq': '=', 'ne': '!=', '=!': '!='
+        }.get(op, op)
+
+    def compop(self, op):
+        return {
+            'ge':'>=', 'le':'<=', 'gt': '>', 'lt': '<',
+            '=<': '<=', '=>':'>='
+        }.get(op, op)
 
     def comp(self, ast):
         if len(ast) == 1:
-            return 'bool(%s)' % ast[0]
+            return Part('bool(%(0)s)s', 'bool(%(0)s)', ast[0])
         else:
-            return ' '.join(ast)
+            # ast is arg, op, arg2, op, arg3 etc
+            args = ast[::2]
+
+            py = ast[:]
+            py[::2] = map('%({})s'.format, range(len(args)))
+            pyfmt = ' '.join(py)
+            
+            if len(ast) == 3:
+                jsfmt = '%(0)s '+ ast[1] + ' %(1)s'
+            else:
+                l = ['%(0)s']
+                ix = 1
+                for op in ast[1:-2:2]:
+                    l += [op, '(_tmp{0} = %({0})s) && _tmp{0}'.format(ix)]
+                    ix += 1
+                l += [ast[-2], '%({})s'.format(ix)]
+                jsfmt = ' '.join(l)
+            return Part(pyfmt, jsfmt, *args)
+
+    def relit(self, ast):
+        return ast[1:-1]
 
     def regex(self, ast):
-        return self.c.regex(ast.re[1:-1], ast.expr)
-
+        pyop, jsop = {
+            '~': ('is', ''),
+            '!~': ('is not', '!'),
+            '~!': ('is not', '!')
+        }[ast.op]
+        re = ast.re.replace('%', '%%')
+        pyfmt = 're.search(%r, %%(0)s) %s None' % (re, pyop)
+        jsfmt = '%s/%s/.test(%%(0)s)' % (jsop, re)
+        return Part(pyfmt, jsfmt, ast.expr)
+        
     def ternary(self, ast):
-        return '%(true)s if %(test)s else %(false)s' % ast
+        if ast.true:
+            return Part(
+                '%(true)s if %(test)s else %(false)s', 
+                '%(test)s ? %(true)s : %(false)s',
+                test=ast.test, true=ast.true, 
+                false=ast.false or Expr([], 'None', 'null'),
+                )
+        else:
+            # test ?: false
+            return Part(
+                '(%(test)s or %(false)s)', 
+                '((%(test)s) || (%(false)s))',
+                test=ast.test, false=ast.false
+                )
 
     def list(self, ast):
-        if ast == ['[', ']']: return '[]'
-        return self._join_with_star(ast, '[%s]', '+', '%s')
-        
-    def _join_with_star(self, ast, paren, join, outer):
+        if ast == ['[', ']']: return Expr([], '[]')
+        return self._join_with_star(ast, '[%(0)s]', '+', '')
+    
+    def _join_with_star(self, ast, paren, join, outer=''):
         parts = []
         expr = []
         for p in ast:
-            if p[:1] == '*':
+            if isinstance(p, StarExp):
                 if expr:
-                    parts.append(paren % ', '.join(expr))
+                    parts.append(Part(paren, paren, List(expr)))
                     expr = []
-                parts.append(p[1:])
+                parts.append(p)
             else:
                 expr.append(p)
         if expr:
-            parts.append(paren % ', '.join(expr))
+            parts.append(Part(paren, paren, List(expr)))
         if len(parts) == 1:
-            return parts[0]
+            parts = parts[0]
         else:
-            return outer % join.join(parts)
-
+            parts = List(parts, join)
+            if outer:
+                parts = Part(outer, outer, parts)
+        parts.out() # check its ok
+        return parts
+            
     def call(self, ast):
-        return '%s(%s)' % (ast.fn, ', '.join(ast.arg or []))
+        return Part('%(0)s(%(1)s)', '%(0)s(%(1)s)', ast.fn, List(ast.arg))
 
     def PYEXPR(self, ast):
         py_code = ''.join(ast[1:-1])
@@ -169,49 +313,52 @@ class ExprSemantics(ExprParser.ExprParser):
         return py_code
 
     def arg(self, ast):
-        return ast
+        return STAR_ARG if ast == '*' else Lvar(ast)
         
     def arglist(self, ast):
-        if ast == ['(', ')']:
-            return self.c.arglist([])
-        return self.c.arglist(ast)
+        return Args(ast)
     
     # externally called...
     def top(self, ast):
         """
         top = '{' {set+:set ';'} {exprs+:expr ';'} emit:[ topemitexpr ] '}' ;
-        topemitexpr = star:starexp | filtexp:expr ;
+        topemitexpr = star:placeholder | filtexp:expr ;
         """
-        e = ast.emit
-        return self.c.top(ast.set or [], ast.exprs or [], e and e.filtexp, e and e.star), self._rest(ast.parseinfo)
+        rest = self._rest(ast.parseinfo)
+        return Top(ast.set or [], ast.exprs or [], ast.emit, rest)
 
     def _rest(self, p):
         if not p: return None  # check!
         return p.buffer.text[p.endpos:]
         
     def defExpr(self, ast):
-        return self.c.funcdef(ast.name, ast.args, ast.filter or [])
+        return Def(ast.name, ast.args, ast.result, ast.filter or [])
         
     def setExpr(self, ast):
         return ast
 
     def ifExpr(self, ast):
-        return self.c.if_stmt(ast)
+        return If(ast.set or [], ast.test)
         
     def forExpr(self, ast):
         if ast.n2:
-            return self.c.for2(ast.n1, ast.n2, ast.expr)
-        elif ast.n1: 
-            return self.c.for1(ast.n1, ast.expr)
-        else:
-            return self.c.for0(ast.expr)
+            pyfmt = 'for %(n1)s, %(n2)s in _.items(%(expr)s):'
+            jsfmt = 'for (%(n1)s in (_tmp = %(expr)s)) { %(n2)s = _tmp[%(n1)s];'
+            stmt = Part(pyfmt, jsfmt, n1=ast.n1, n2=ast.n2, expr=ast.expr)
+        else: 
+            pyfmt = 'for %(n1)s in _.iter(%(expr)s):'
+            jsfmt = 'for (%(n1)s in %(expr)s) {'
+            stmt = Part(pyfmt, jsfmt, n1=ast.n1 or Lvar('dot'), expr=ast.expr)
+        return For(set=ast.set or [], stmt=stmt)
+            
+    def lvar(self, ast):
+        return Lvar(ast)
 
     def paramExpr(self, ast):
         return ast
         
+
+    @debug
     def useExpr(self, ast):
         # step, path, arglist
-        return ast
-        
-    def callargs(Self, ast):
-        return ''.join(ast)
+        return Use(ast.set or [], ast.path, ast.arglist and List(ast.arglist))

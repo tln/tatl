@@ -12,12 +12,42 @@ from __future__ import print_function, division, absolute_import, unicode_litera
 from grako.parsing import * # @UnusedWildImport
 from grako.exceptions import * # @UnusedWildImport
 
-__version__ = '14.046.21.49.07'
+__version__ = '14.047.23.27.51'
 
 class ExprParser(Parser):
     def __init__(self, whitespace=None, nameguard=True, **kwargs):
         super(ExprParser, self).__init__(whitespace=whitespace,
             nameguard=nameguard, **kwargs)
+
+    @rule_def
+    def _defAttr_(self):
+        self._defExpr_()
+        self._check_eof()
+
+    @rule_def
+    def _forAttr_(self):
+        self._forExpr_()
+        self._check_eof()
+
+    @rule_def
+    def _ifAttr_(self):
+        self._ifExpr_()
+        self._check_eof()
+
+    @rule_def
+    def _paramAttr_(self):
+        self._paramExpr_()
+        self._check_eof()
+
+    @rule_def
+    def _setAttr_(self):
+        self._setExpr_()
+        self._check_eof()
+
+    @rule_def
+    def _useAttr_(self):
+        self._useExpr_()
+        self._check_eof()
 
     @rule_def
     def _attrs_(self):
@@ -60,16 +90,17 @@ class ExprParser(Parser):
     def _defExpr_(self):
         self._NAME_()
         self.ast['name'] = self.last_node
-        self._arglist_()
-        self.ast['args'] = self.last_node
-        def block2():
-            self._filter_()
-            self.ast.add_list('filter', self.last_node)
-        self._closure(block2)
+        with self._optional():
+            self._arglist_()
+            self.ast['args'] = self.last_node
         with self._optional():
             self._token('=')
             self._expr_()
             self.ast['result'] = self.last_node
+        def block3():
+            self._filter_()
+            self.ast.add_list('filter', self.last_node)
+        self._closure(block3)
 
     @rule_def
     def _arglist_(self):
@@ -127,7 +158,7 @@ class ExprParser(Parser):
             self._token(';')
         self._closure(block0)
         self._test_()
-        self.ast['@'] = self.last_node
+        self.ast['test'] = self.last_node
 
     @rule_def
     def _paramExpr_(self):
@@ -157,10 +188,12 @@ class ExprParser(Parser):
         self._token('(')
         with self._optional():
             self._expr_()
-            def block0():
+            self.ast['@'] = self.last_node
+            def block1():
                 self._token(',')
                 self._expr_()
-            self._closure(block0)
+                self.ast['@'] = self.last_node
+            self._closure(block1)
             with self._optional():
                 self._token(',')
         self._token(')')
@@ -176,15 +209,21 @@ class ExprParser(Parser):
         with self._group():
             with self._choice():
                 with self._option():
-                    self._set_()
+                    with self._group():
+                        with self._choice():
+                            with self._option():
+                                self._set_()
+                            with self._option():
+                                self._setif_()
+                            self._error('no available options')
                     self.ast.add_list('set', self.last_node)
                 with self._option():
                     with self._group():
-                        def block3():
+                        def block4():
                             self._expr_()
                             self.ast.add_list('exprs', self.last_node)
                             self._token(';')
-                        self._closure(block3)
+                        self._closure(block4)
                         with self._optional():
                             self._topemitexpr_()
                             self.ast['emit'] = self.last_node
@@ -195,16 +234,7 @@ class ExprParser(Parser):
     def _set_(self):
         self._lvar_()
         self.ast['lvar'] = self.last_node
-        with self._group():
-            with self._choice():
-                with self._option():
-                    self._token('=')
-                with self._option():
-                    self._token('=?')
-                with self._option():
-                    self._token('?=')
-                self._error('expecting one of: =? ?= =')
-        self.ast['op'] = self.last_node
+        self._token('=')
         self._expr_()
         self.ast['expr'] = self.last_node
 
@@ -213,14 +243,26 @@ class ExprParser(Parser):
         self._NAME_()
 
     @rule_def
+    def _setif_(self):
+        self._NAME_()
+        self.ast['var'] = self.last_node
+        with self._group():
+            with self._choice():
+                with self._option():
+                    self._token('=?')
+                with self._option():
+                    self._token('?=')
+                self._error('expecting one of: =? ?=')
+        self._expr_()
+        self.ast['expr'] = self.last_node
+
+    @rule_def
     def _topemitexpr_(self):
         with self._choice():
             with self._option():
-                self._starexp_()
-                self.ast['star'] = self.last_node
+                self._placeholder_()
             with self._option():
                 self._filtexp_()
-                self.ast['filtexp'] = self.last_node
             self._error('no available options')
 
     @rule_def
@@ -249,24 +291,18 @@ class ExprParser(Parser):
                 self._error('no available options')
 
     @rule_def
-    def _starexp_(self):
-        with self._choice():
-            with self._option():
-                with self._group():
-                    with self._choice():
-                        with self._option():
-                            self._token('*')
-                        with self._option():
-                            self._token('++')
-                        self._error('expecting one of: ++ *')
-                self.ast['@'] = self.last_node
-                self._token(':')
-                self._NAME_()
-                self.ast['@'] = self.last_node
-            with self._option():
-                self._token('*')
-                self._expr_()
-            self._error('no available options')
+    def _placeholder_(self):
+        with self._group():
+            with self._choice():
+                with self._option():
+                    self._token('*')
+                with self._option():
+                    self._token('++')
+                self._error('expecting one of: ++ *')
+        self.ast['@'] = self.last_node
+        self._token(':')
+        self._NAME_()
+        self.ast['@'] = self.last_node
 
     @rule_def
     def _expr_(self):
@@ -315,15 +351,19 @@ class ExprParser(Parser):
         with self._group():
             with self._choice():
                 with self._option():
-                    self._token('~')
+                    self._token('~!')
                 with self._option():
                     self._token('!~')
                 with self._option():
-                    self._token('~!')
-                self._error('expecting one of: ~ !~ ~!')
+                    self._token('~')
+                self._error('expecting one of: !~ ~ ~!')
         self.ast['op'] = self.last_node
-        self._REGEX_()
+        self._relit_()
         self.ast['re'] = self.last_node
+
+    @rule_def
+    def _relit_(self):
+        self._REGEX_()
 
     @rule_def
     def _comp_(self):
@@ -353,11 +393,23 @@ class ExprParser(Parser):
                 self._token('==')
             with self._option():
                 self._token('!=')
-            self._error('expecting one of: == !=')
+            with self._option():
+                self._token('eq')
+            with self._option():
+                self._token('ne')
+            self._error('expecting one of: ne == eq !=')
 
     @rule_def
     def _compop_(self):
         with self._choice():
+            with self._option():
+                self._token('le')
+            with self._option():
+                self._token('ge')
+            with self._option():
+                self._token('gt')
+            with self._option():
+                self._token('lt')
             with self._option():
                 self._token('<=')
             with self._option():
@@ -370,7 +422,7 @@ class ExprParser(Parser):
                 self._token('=>')
             with self._option():
                 self._token('>')
-            self._error('expecting one of: > >= => <= < =<')
+            self._error('expecting one of: => > >= <= lt ge < gt le =<')
 
     @rule_def
     def _range_(self):
@@ -520,6 +572,12 @@ class ExprParser(Parser):
         self._token(']')
 
     @rule_def
+    def _starexp_(self):
+        self._token('*')
+        self._expr_()
+        self.ast['@'] = self.last_node
+
+    @rule_def
     def _map_(self):
         self._token('{')
         with self._optional():
@@ -634,6 +692,24 @@ class ExprSemanticParser(CheckSemanticsMixin, ExprParser):
 
 
 class ExprSemantics(object):
+    def defAttr(self, ast):
+        return ast
+
+    def forAttr(self, ast):
+        return ast
+
+    def ifAttr(self, ast):
+        return ast
+
+    def paramAttr(self, ast):
+        return ast
+
+    def setAttr(self, ast):
+        return ast
+
+    def useAttr(self, ast):
+        return ast
+
     def attrs(self, ast):
         return ast
 
@@ -673,6 +749,9 @@ class ExprSemantics(object):
     def lvar(self, ast):
         return ast
 
+    def setif(self, ast):
+        return ast
+
     def topemitexpr(self, ast):
         return ast
 
@@ -682,7 +761,7 @@ class ExprSemantics(object):
     def filter(self, ast):
         return ast
 
-    def starexp(self, ast):
+    def placeholder(self, ast):
         return ast
 
     def expr(self, ast):
@@ -695,6 +774,9 @@ class ExprSemantics(object):
         return ast
 
     def regex(self, ast):
+        return ast
+
+    def relit(self, ast):
         return ast
 
     def comp(self, ast):
@@ -740,6 +822,9 @@ class ExprSemantics(object):
         return ast
 
     def list(self, ast):
+        return ast
+
+    def starexp(self, ast):
         return ast
 
     def map(self, ast):
