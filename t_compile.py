@@ -268,19 +268,9 @@ class Compiler:
             Top = self.parser.parse(text, rule_name='top')
             text = Top.rest
             
-            for stmt in Top.set:
-                lvar = stmt.lvar.lvar
-                expr = stmt.expr.py
-                ts.LVARE(lvar, expr)
-            for expr in Top.exprs:
-                ts.PY(expr.py)
-            if Top.emit:
-                if Top.emit.type == 'star':
-                    self.add_lvar(Top.emit.name)
-                    ts.LVARE(Top.emit.py)
-                else:
-                    ts.V(Top.emit.py, quoted)
-            
+            Top.quoted = quoted
+            Top.addto(ts.block)
+
             ix = text.find('{')
         ts.T(text, quoted)
         

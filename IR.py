@@ -35,7 +35,21 @@ class Function:
         return Block(self.code.top)
         
     def done(self):
-        self.init.top.combine(self.code.done())
+        code = self.code.done()
+        code.optimize()
+
+        print '----- add_locals -----'
+        lvars = set()
+        for op in code.ops:
+            for rvar in op.rvars:
+                if rvar not in lvars:
+                    InitLocal(rvar).addto(self.init)
+                    lvars.add(rvar)
+            lvars.update(op.lvars)
+            print '%-30.30r l:%s r:%s lvars:%s' % (op, op.lvars, op.rvars, lvars)
+        print '-----'
+        
+        self.init.top.combine(code)
         self.code = None
         return self.init.done()
 
@@ -93,12 +107,28 @@ class FuncDef(Part):
 class If(namedtuple('If', 'set test'), Out): pass
 class Use(namedtuple('Use', 'set path arglist'), Out): pass
 class For(namedtuple('For', 'set stmt'), Out): pass
-class Top(namedtuple('Top', 'set exprs emit rest'), Out): pass
+class Top:
+    def __init__(self, set, exprs, emit, rest):
+        self.set = set
+        self.exprs = exprs
+        self.quoted = 1
+        self.emit = emit
+        self.rest = rest
 
-class _Val(ArgPart): _fields = ['val']
-class _Var(ArgPart): _fields = ['var']
-class _Expr(ArgPart): _fields = ['expr']
-class _Arg(ArgPart): _fields = ['arg']
+    def addto(self, block):
+        for stmt in self.set:
+            stmt.addto(block)
+        for expr in self.exprs:
+            expr.addto(block)
+        if self.emit:
+            if self.emit.type == 'star':
+                expr.addto(block)
+            else:
+                (QE if self.quoted else UE)(self.emit).addto(block)
+
+class _Val(ArgExpr): fields = ['val']
+class _Var(ArgExpr): fields = ['var']
+class _Expr(ArgPart): fields = ['expr']
 
 class C(_Val):
     jsfmt = pyfmt = '_emit(%(val)r)'
@@ -112,36 +142,33 @@ class EmitU(Emit): quote = 0
 
 class For: "mixin to mark for loop start"
 
-class FuncPreamble(_Arg):
-    pyfmt = jsfmt = '_, _q, _emit = t_tmpl._ctx(%(arg)r)'
+class FuncPreamble(ArgExpr):
+    fields = ['context']
+    pyfmt = jsfmt = '_, _q, _emit = t_tmpl._ctx(%(context)r)'
 
-class Import(_Arg):
+class Import(ArgExpr):
     pyfmt = 'import %(arg)s'
     jsfmt = "var %(arg)s = require(%(arg)r)"
+    lvarfields = fields = ['arg']
 
-class InitLocal(_Var):  # SV Setup local vars    
+class InitLocal(_Var):  # SV Setup local vars
+    lvarfields = ['var']
     pyfmt = '%(var)s = _kw.get(%(var)r)'
     jsfmt = 'var %(var)s'
-
-
     
-class T(ArgPart):    # T -> C Constant or U Unquoted
-    _fields = 'val', 'quoted'
+class T(ArgExpr):    # T -> C Constant or U Unquoted
+    fields = 'val', 'quoted'
     def addto(self, block):
         p = C(escape(self.val)) if self.quoted else U(self.val)
         p.addto(block)
         
-class V(ArgPart):
-    _fields = 'expr', 'quoted'    # V -> QE or UE
-    def addto(self, block):
-        cls = QE if self.quoted else UE
-        cls(self.expr).addto(block)
-
-class QE(EmitQ, _Expr):             # QE Quoted Expression
+class QE(EmitQ, ArgPart):             # QE Quoted Expression
+    fields = ['expr']
     pyfmt = jsfmt = '_emit(_q(%(expr)s))'
 #class _QV(EmitQ, _Var):              # QV Quoted local Var
 #    pyfmt = jsfmt = '_emit(_q(%(var)s))'
-class _UE(EmitU, _Expr):             # UE Unquoted Expression
+class _UE(EmitU, ArgPart):             # UE Unquoted Expression
+    fields = ['expr']
     pyfmt = jsfmt = '_emit(%(expr)s)'
 #class _UV(EmitU, _Var):              # UV Unquoted local Var
 #    pyfmt = jsfmt = '_emit(%(var)s)'

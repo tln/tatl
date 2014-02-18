@@ -9,7 +9,6 @@ class Block:
     def done(self):
         self.top.combine(self.bot)
         self.bot = None
-        self.top.optimize()
         return self.top
         
     def __del__(self):
@@ -86,23 +85,29 @@ class BasePart(Op):
             l.append(line)
         return '\n'.join(l)
 
-class ArgPart(BasePart):
-    _fields = []
-    def __init__(self, *args):
-        assert len(args) == len(self._fields)
-        self.__dict__.update(zip(self._fields, args))
+    def addto(self, block):
+        block.top.add(self)
 
+class ArgExpr(BasePart):
+    fields = []
+    lvarfields = []
+    rvarfields = []
+    def __init__(self, *args):
+        BasePart.__init__(self)
+        assert len(args) == len(self.fields)
+        d = dict(zip(self.fields, args))
+        self.__dict__.update(d)
+        self.lvars = [d[k] for k in self.lvarfields]
+        self.rvars = [d[k] for k in self.rvarfields]
+        
     def __repr__(self):
         n = self.__class__.__name__
-        args = tuple(getattr(self, attr) for attr in self._fields)
+        args = tuple(getattr(self, attr) for attr in self.fields)
         return n + str(args)
         
     def code(self, target):
         fmt = getattr(self, target+'fmt')
         return self.Code(fmt % self.__dict__)
-
-    def addto(self, block):
-        block.top.add(self)
 
 class Part(BasePart):
     def __init__(self, pyfmt, jsfmt, *parts, **partkw):
@@ -118,7 +123,15 @@ class Part(BasePart):
         self.py = pyfmt % pyfrags
         self.js = jsfmt % jsfrags
         self.__dict__.update(partkw)
-      
+
+class ArgPart(Part):
+    fields = []
+    pyfmt = jsfmt = '*not implemented*'
+    def __init__(self, *args):
+        assert len(args) == len(self.fields)
+        partkw = dict(zip(self.fields, args))
+        Part.__init__(self, self.pyfmt, self.jsfmt, **partkw)
+    
 class List(BasePart):
     def __init__(self, partlist, join=', '):
         BasePart.__init__(self)
