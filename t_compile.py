@@ -20,7 +20,8 @@ def compile(s, source, out='py'):
     c.tag(root)
     if out[:2] == 'ir':
         return '\n\n'.join([ir.view() for ir in c.module.ir])
-    py =  c.module.join()
+    c.module.done()
+    py =  c.module.code('py')
     if out == 'py':
         return py
     elif out == 'run':
@@ -37,163 +38,33 @@ BUILTINS = set([
 'abs', 'all', 'any', 'float', 'int', 'len', 'max', 'min', 'next', 'range', 'round',
 ])
 
+import IR
 
-from t_ir import IR
-
-class PyIR(IR):
-    star = False
-    starix = None
-    name = None
-    args = None
-    def DS(self, (name, args)):
-        # ...don't add to su
-        self.name = name
-        self.args = args[:]
-        if '*' in args:
-            self.star = True
-            self.starix = args.index('*')
-            del args[self.starix]
-
-    def LP(self, name):
-        if self.star:
-            self.args.insert(name, self.starix)
-            self.starix += 1
-        else:
-            warn("Param used without * in args, treating as regular local")
-        self.VAR(name)
-
-    
-
-class Module:
-    def __init__(self, source):
-        self.source = source
-        self.defs = []
-        self.ir = []
-        self.modules = set(MODULE_IMPORTS)
-        self.funcnames = {}
-        
-    def add_import(self, module):
-        self.modules.add(module)
-        
-    def startdef(self, name, args, filters):
-        ir = PyIR()
-        self.ir.append(ir)
-        map(ir.FILT, filters)
-        
-        ir.DEF(name, args.args())
-        ir.SETUP('attr')
-
-        if name in self.funcnames:
-            warn("Macro %s already" % name)
-        else:
-            self.funcnames[name] = ir
-        return ir
-        
-    def global_name(self, name):
-        return name in self.funcnames or name in self.modules or name in BUILTINS
-        
-    def join(self):
-        l = []
-        add = l.append
-        add(MODULE_PREAMBLE % self.source)
-        for m in self.modules:
-            add('import '+m)
-        add('')
-        for f in self.ir:
-            add(f.out())
-            add('')
-        return '\n'.join(l)
-        
-class Function(Out):
-    def __init__(self, module, name, args, filters):
-        Out.__init__(self)
-        self.module = module
-        
-        # old way
-        self.lines = ['@'+filt for filt in filters]
-        self.defix = len(self.lines)
-        self.add('def <reserved>', 1)
-        self.add(FN_PREAMBLE)
-        self.name = name
-        self.args = args.split(', ')
-        self.locals = []
-        self.lvars = set()
-        if '*' in self.args:
-            self.starix = self.args.index('*')
-            del self.args[self.starix]
-        else:
-            self.starix = -1
-        
-    def join(self):
-        self.lines[self.defix] = 'def %s(%s):' % (self.name, ', '.join(self.args))
-        if self.locals:
-            ix = self.defix + 1
-            stmts = []
-            tmpl = INDENT + '%s = _kw.get(%r)'
-            #TODO
-            for var in self.locals:
-                if not self.module.global_name(var):
-                    warn("In %s: variable %s not defined as a paramter" % (self.name, var))
-                    stmts.append(tmpl % (var, var))
-            self.lines[ix:ix] = stmts
-        return Out.join(self)
-
-    def add_local(self, var):
-        if var in self.args: return
-        if var in self.locals: return
-        if var in self.lvars: return
-        self.locals.append(var)
-
-    def add_lvar(self, lvar):
-        self.lvars.add(lvar)
-        return lvar
-
-    def add_param(self, p):
-        if p in self.args:
-            warn("Parameter already exists")
-        if self.starix > -1:
-            self.args.insert(self.starix, p)
-            self.starix += 1
-        else:
-            warn("Paramter can't be added (use * in args list to allow dynamically added params)")
-                
 class Compiler:
     def __init__(self, source):
-        self.module = Module(source)
+        self.module = IR.Module(source)
         self.parser = ExprParser.ExprParser(
             parseinfo=True, 
             semantics=ExprSemantics.ExprSemantics()
         )
         self.tags = []
-        self.lastir = []
-        self.ir = None
+        self.lastfn = []
+        self.fn = None
         
-    def add_var(self, var):
-        assert var != 'itervalues'
-        self.ir.VAR(var)
-
-    def add_lvar(self, var):
-        #TODO
-        pass
-        
-    def add_module(self, module):
-        self.module.add_import(module)
-        
-    def startdef(self, name, args, filters):
-        self.lastir.append(self.ir)
-        self.ir = self.module.startdef(name, args, filters)
+    def startdef(self, funcdef):
+        self.lastfn.append(self.fn)
+        self.fn = self.module.startdef(funcdef)
         
     def enddef(self):
-        self.ir.finish()
-        self.ir = self.lastir.pop()
+        self.fn = self.lastfn.pop()
         
     def tag(self, tag):
         if tag.name == 'else':
             return self._else(tag)
-        ts = self._Tagstate(tag.name, tag.get('id'))
+        ts = self._Tagstate(tag.name, tag.get('id'), self.fn and self.fn.block())
         self.tags.append(ts)
         self._process_attrs(tag.attrs, ts)
-        self._children(tag)
+        self._children(ts, tag)
         self._finalize(ts)
         self.tags.pop()
 
@@ -243,25 +114,25 @@ class Compiler:
                 raise
                 
         if ts.build_tag:
-            self.ir.STARTATTRS({})
+            ts.StartAttrs({})
             for attr, val in attrs.items():
                 if isinstance(val, list):
                     #multi-value attribute
                     val = ' '.join(val)
-                self.ir.STARTATTR()
+                ts.StartAttr()
                 self.parse_text(val, False)
-                self.ir.ENDATTR(attr)
-            self.ir.ENDATTRS()
+                ts.EndAttr(attr)
+            ts.EndAttrs()
         elif ts.emit_tag:
-            self.ir.C('<'+ts.name)
+            ts.C('<'+ts.name)
             for attr, val in attrs.items():
-                self.ir.C(' '+attr+'="')
+                ts.C(' '+attr+'="')
                 if isinstance(val, list):
                     #multi-value attribute
                     val = ' '.join(val)
                 self.parse_text(val)
-                self.ir.C('"')
-            self.ir.C('>')
+                ts.C('"')
+            ts.C('>')
         else:
             if attrs:
                 warn("Leftover attrs on <do>")
@@ -273,23 +144,24 @@ class Compiler:
         elide_pending = 0
         build_tag = 0
         attrs = None
-        def __init__(self, name, id): 
-            self.adds = []
+        def __init__(self, name, id, block): 
             self.emit_tag = name != 'do'
             self.name = name
             self.id = id
-            self.ir = IR()
+            self.block = block
 
-        def add(self, o):
-            self.adds.append(o)
-
+        def __getattr__(self, name):
+            if name[:1] == '_': raise AttributeError
+            cls = getattr(IR, name)
+            fn = lambda *args: cls(*args).addto(self.block)
+            setattr(self, name, fn)
+            return fn
     def _finalize(self, ts):
         if ts.emit_tag:
-            self.ir.C('</%s>' % ts.name)
+            IR.C('</%s>' % ts.name).addto(ts.block)
         self._finish_elide(ts)
-        self.ir.add(ts.ir)
+        ts.block.done()
         if ts.ret:
-            self.ir.RET()
             self.enddef()
 
     def _finish_elide(self, ts):
@@ -303,10 +175,10 @@ class Compiler:
         self.ir.ELIDESTART()
         ts.elide_pending = True
         
-    def _process_def(self, ts, result):
-        Def = result
-        self.startdef(Def.name, Def.args, Def.filter)
-        ts.ret = Def.result
+    def _process_def(self, ts, funcdef):
+        self.startdef(funcdef)
+        ts.block = self.fn.block()
+        ts.ret = True
 
     def _process_set(self, ts, var):
         self.ir.SETSTART()
@@ -315,9 +187,8 @@ class Compiler:
         ts.emit_tag = False
         
     def _process_if(self, ts, test):
-        self.ir.IFSTART(test)
+        test.addto(block)
         ts.if_pending = 1
-        ts.ir.IFEND()
         
     def _process_param(self, ts, v):
         map(self.ir.PARAM, v)
@@ -376,14 +247,14 @@ class Compiler:
 
         self._children(tag)
     
-    def _children(self, tag):
+    def _children(self, ts, tag):
         for c in tag.children:
             if isinstance(c, NavigableString):
-                self.parse_text(c)
+                self.parse_text(ts, c)
             else:
                 self.tag(c)
     
-    def parse_text(self, text, quoted=1):
+    def parse_text(self, ts, text, quoted=1):
         result = []
         ix = text.find('{')
         while ix > -1:
@@ -392,7 +263,7 @@ class Compiler:
                 if ix == -1: break
                 continue
             if ix > 0:
-                self.ir.T(text[:ix], quoted)
+                ts.T(text[:ix], quoted)
                 text = text[ix:]
             Top = self.parser.parse(text, rule_name='top')
             text = Top.rest
@@ -400,19 +271,18 @@ class Compiler:
             for stmt in Top.set:
                 lvar = stmt.lvar.lvar
                 expr = stmt.expr.py
-                self.add_lvar(lvar)
-                self.ir.LVARE(lvar, expr)
+                ts.LVARE(lvar, expr)
             for expr in Top.exprs:
-                self.ir.PY(expr.py)
+                ts.PY(expr.py)
             if Top.emit:
                 if Top.emit.type == 'star':
                     self.add_lvar(Top.emit.name)
-                    self.ir.LVARE(Top.emit.py)
+                    ts.LVARE(Top.emit.py)
                 else:
-                    self.ir.V(Top.emit.py, quoted)
+                    ts.V(Top.emit.py, quoted)
             
             ix = text.find('{')
-        self.ir.T(text, quoted)
+        ts.T(text, quoted)
         
 def warn(s):
     print "Warning:", s
@@ -650,7 +520,7 @@ total: {.sum}
 
 
 TESTS = map(str.strip, TESTS.split('----'))
-del TESTS[:-3]  # just do last 3
+del TESTS[3:]  # just do 3
 
 
 

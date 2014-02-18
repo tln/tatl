@@ -1,189 +1,238 @@
-from collections import namedtuple
+from collections import namedtuple, OrderedDict
 import re
 
+class Block:
+    def __init__(self, top):
+        self.top = top
+        self.bot = OpList()
+        
+    def done(self):
+        self.top.combine(self.bot)
+        self.bot = None
+        self.top.optimize()
+        return self.top
+        
+    def __del__(self):
+        if self.bot:
+            print 'Warning: Block.done() not called'
 
-class I: indent = 1
-class D: dedent = 1
+class Compilable:
+    def addto(self, block):
+        # Add one or more Ops to block.top / block.bottom
+        pass
 
-used = set()
-all = set()
-alias = []
-
-class OpBase:
-    _fields = []
-    indent = 0
+class Op:
+    def code(self, target):
+        # Return a Code instance
+        return ''
+        
+class Code(unicode):
     dedent = 0
+    indent = 0
     
-    @property
-    def name(self):
-        return self.__class__.__name__[1:]
-    
-    def __init__(self, *args):
-        if len(self._fields) != len(args):
-            raise TypeError("%s: arg count wrong: %s <- %s" % (self.__class__.__name__, self._fields, args))
-        for field, arg in zip(self._fields, args):
-            setattr(self, field, arg)
+class Indent(Code):
+    indent = 1
 
-    def init(self, ir):
-        "Do initialization. Can set attrs on ir. yield one or more ops. Don't forget yield self!"
-        yield self
+class Dedent(Code):
+    dedent = 1
+
+class DedentThenIndent(Code):
+    dedent = 1
+    indent = 1
+        
+class BasePart(Op):
+    """Represents part of our AST. Renders early to py or js, keeps 
+    tracks of lvars and rvars of itself and children.
+    """
+    py = js = '*not implemented*'
+    def __init__(self):
+        self.lvars = []
+        self.rvars = []
+        
+    def add(self, part):
+        self.lvars.extend(part.lvars)
+        self.rvars.extend(part.rvars)
+        
+    def __str__(self):
+        #TODO remove
+        print 'str called -> %r' % self.py
+        return self.py
+        
+    def __repr__(self):
+        return '<%s>' % self.out().replace('\n', ' ')
+        
+    Code = Code
+    def code(self, target):
+        assert target in 'py', 'js'
+        return self.Code(getattr(self, target))
+        
+    type = ''
+    def out(self):
+        l = []
+        if self.py == self.js:
+            l.append('py/js: '+self.py)
+        else:
+            l.append('py: '+self.py)
+            l.append('js: '+self.js)
+        line = ''
+        if self.type:
+            line += 'type: %s ' % self.type
+        if self.lvars:
+            line += 'lvars: %s ' % ','.join(self.lvars)
+        if self.rvars:
+            line += 'rvars: %s ' % ','.join(self.rvars)
+        line = line.rstrip()
+        if line:
+            l.append(line)
+        return '\n'.join(l)
+
+class ArgPart(BasePart):
+    _fields = []
+    def __init__(self, *args):
+        assert len(args) == len(self._fields)
+        self.__dict__.update(zip(self._fields, args))
 
     def __repr__(self):
-        fields = [getattr(self, fld) for fld in self._fields]
-        return self.__class__.__name__ + repr(tuple(fields))
+        n = self.__class__.__name__
+        args = tuple(getattr(self, attr) for attr in self._fields)
+        return n + str(args)
+        
+    def code(self, target):
+        fmt = getattr(self, target+'fmt')
+        return self.Code(fmt % self.__dict__)
 
-    def code(self):
-        fmt = self.__doc__
-        if '%(' in fmt: fmt %= self
-        elif self._fields: fmt %= tuple(self)
-        return fmt
-        
-    def __getitem__(self, name):
-        if isinstance(name, int): name = self._fields[name]
-        return getattr(self, name, None)
-        
-    def __len__(self):
-        # so that tuple(self) works
-        return len(self._fields)
-        
-    def __nonzero__(self):
-        return True
-        
-class Op0(OpBase):
-    _fields = ()
-    def __init__(self, *args):
-        raise TypeError("%s: arg count wrong" % self.__class__.__name__)
-    def code(self):
-        return self.__doc__
+    def addto(self, block):
+        block.top.add(self)
 
-class OpType:
-    @classmethod
-    def mk(cls, *args, **kw):
-        class NewOpClass(cls, OpBase):
-            _fields = args
-        return NewOpClass
-  
-assert OpType.mk()()
-   
+class Part(BasePart):
+    def __init__(self, pyfmt, jsfmt, *parts, **partkw):
+        BasePart.__init__(self)
+        pyfrags = {}
+        jsfrags = {}
+        if 'Code' in partkw:
+            self.Code = partkw.pop('Code')
+        for k, v in list(enumerate(parts)) + partkw.items():
+            self.add(v)
+            pyfrags[str(k)] = v.py
+            jsfrags[str(k)] = v.js
+        self.py = pyfmt % pyfrags
+        self.js = jsfmt % jsfrags
+        self.__dict__.update(partkw)
+      
+class List(BasePart):
+    def __init__(self, partlist, join=', '):
+        BasePart.__init__(self)
+        self.partlist = partlist
+        map(self.add, partlist)
+        self.py = join.join(p.py for p in partlist)
+        self.js = join.join(p.js for p in partlist)
+
+class Lvar(BasePart):
+    def __init__(self, lvar):
+        BasePart.__init__(self)
+        self.lvars = [lvar]
+        self.py = self.js = lvar
+        
+class Expr(BasePart):
+    def __init__(self, rvars, py, js=None):
+        BasePart.__init__(self)
+        self.py = py
+        self.js = js or py
+        self.rvars = rvars
+        
+class Value(BasePart):
+    def __init__(self, py, js=None):
+        BasePart.__init__(self)        
+        self.py = py
+        self.js = js or py
+ 
+ 
+class Wrap(BasePart):
+    def __init__(self, part):
+        BasePart.__init__(self)
+        self.add(part)
+        self.py = part.py
+        self.js = part.js
+        self.part = part
+
+class Out:
+    # mixin to namedtuples
+    def out(self):
+        l = []
+        for k in self._fields:
+            v = getattr(self, k)
+            if v and isinstance(v, list):
+                l += [('%s[%s]' % (k, ix), v.out() if hasattr(v, 'out') else str(v)) 
+                      for ix, v in enumerate(v)]
+            else:
+                v = v.out() if hasattr(v, 'out') else str(v)
+                l.append((k, v))
+        n = max(len(lbl) for lbl, val in l)
+        s = '\n' + ' '*n + '   '
+        return '\n'.join(
+            lbl.ljust(n)+' = '+val.replace('\n', s)
+            for lbl, val in l
+        )
+
+#----------
+
 def join(fn):
     return lambda *args, **kw: '\n'.join(fn(*args, **kw))
     
 class OpList:
     def __init__(self):
-        self.lists = [[] for t in self.op_types]
-        for (i, t) in enumerate(self.op_types):
-            t.listix = i
-
-        for k in dir(self.__class__):
-            if re.match('_[A-Z]', k) and k[1:] not in used:
-                v = getattr(self, k)
-                if not isinstance(v, str): all.add(k[1:])
-        
-
-    def __getattr__(self, op, _p=re.compile('[A-Z][A-Z0-9]*$').match):
-        if _p(op) is None: raise AttributeError(op)
-        cls = getattr(self, '_'+op)
-        while isinstance(cls, str):
-            # alias
-            alias.append('%s -> %s' % (op, cls))
-            op = cls
-            cls = getattr(self, '_'+op)
-        used.add(op)
-        dest = self.lists[cls.listix]
-        def fn(*args):
-            o = cls(*args)
-            r = o.init(self)
-            if r is None: 
-                return
-            for o in r: 
-                #NB o.init may cause insertions between iterations
-                if o is None: continue
-                if not isinstance(o, OpBase):
-                    print "Bad add!", o
-                    continue
-                dest.append(o) 
-        setattr(self, op, fn)
-        return fn
+        self.ops = []
+                
+    def __nonzero__(self):
+        return bool(self.ops)
 
     def check(self):
-        for l in self.lists:
-            for op in l:
-                try:
-                    op.code()
-                except Exception, e:
-                    print 'error:', op, e
-                    import pdb
-                    pdb.post_mortem()
+        for op in self.ops:
+            try:
+                assert isinstance(op.code('py'), Code)
+            except Exception, e:
+                print 'error:', op, e
+                import pdb
+                pdb.post_mortem()
 
     @join
     def view(self):
-        for l in self.lists:
-            for op in l:
-                yield '%2d %s' % (op.indent-op.dedent, op)
+        for op in self.ops:
+            try:
+                indent = op.Code.indent-op.Code.dedent
+            except:
+                indent = 0
+            yield '%2d %s' % (indent, op)
 
     @join
-    def out(self):
+    def code(self, target):
         i = 0
-        for l in self.lists:
-            for op in l:
-                i -= op.dedent
-                yield '    '*i + op.code()
-                i += op.indent
+        for op in self.ops:
+            code = op.code(target)
+            if not isinstance(code, Code):
+                print 'op.code didnt return Code instance:', repr(op)
+                code = Code(code)
+            i -= code.dedent
+            yield '    '*i + code
+            i += code.indent
     
-    def add(self, ir):
-        assert self.op_types == ir.op_types
-        for l1, l2 in zip(self.lists, ir.lists):
-            l1.extend(l2)
-            
-class SampleIR(OpList):
-    class Pre(OpType):pass
-    class Post(OpType):pass
-    class In(OpType):pass
-    op_types = [Pre, In, Post]
+    def add(self, *ops):
+        self.ops.extend(ops)
 
-    # shared attrs
-    name = None
-    args = None
+    def combine(self, other):
+        self.ops.extend(other.ops)    
     
-    class _DEF(I, Pre.mk('name', 'args')):
-        def init(self, ir):
-            ir.name = self.name
-            ir.args = args = self.args
-            ir.star = '*' in args
-            if ir.star:
-                ir.starix = args.index('*')
-                del args[ir.starix]
-            yield self
-            ir.PREAM('attr')
+    def optimize(self):
+        for cls in self.optimizers:
+            cls(self.ops).optimize()
+        return self
 
-        def code(self):
-            return 'def %s(%s)' % (self.name, ', '.join(self.args))
-        
-    class _LV(Pre.mk('var')):
-        "%(var)s = _kw.get(%(var)r)"
-        def init(self, ir):
-            if self.var not in ir.args:
-                yield self
-        
-    class _PREAM(Pre.mk('mode')): "_ = _ctx(%r)"
- 
-    Op0 = In.mk()
-    Op1 = In.mk('arg')
-    Op2 = In.mk('arg', 'arg2')
-
-    _DF = 'FOO'
-    class _FOO(Op1):  "Foo!"
-    class _BAR(Op2): 
-        def init(self, ir): ir.BAR1(), ir.BAR2(self.arg2, self.arg)
-    class _BAR1(Op0): "bar1"
-    class _BAR2(Op2): "bar2 %s %s"
-  
+    optimizers = []        
 
 class Peepholer:
     def __init__(self, ops):
         self.ops = ops
 
-    cls = OpType.mk()
     def filt(self, op, cur):
         return isinstance(op, self.cls)
         
@@ -220,11 +269,10 @@ class Peepholer:
             runs[-1][-1] = ix+1
             
         return runs
- 
- 
+
 class OldStartEndPeepholer(Peepholer):
-    start = OpBase
-    end = OpBase   # valid if next op (or last op if also in cls) is this run
+    start = Op
+    end = Op   # valid if next op (or last op if also in cls) is this run
     def filt(self, op, cur):
         if cur:
             return isinstance(op, self.cls)
@@ -236,9 +284,9 @@ class OldStartEndPeepholer(Peepholer):
         return isinstance(self.ops[end-1], self.end) or isinstance(self.ops[end], self.end)
 
 class StartEndPeepholer(Peepholer):
-    start = OpType.mk()
-    middle = OpBase
-    end = OpType.mk()
+    start = Op
+    middle = Op
+    end = Op
     def find_runs(self):
         runs = []
         start = None
@@ -253,15 +301,3 @@ class StartEndPeepholer(Peepholer):
                 start = None
                 # migt miss here
         return runs
-    
-if __name__ == '__main__':
-    ir = SampleIR()
-    ir.DEF('fn', ['a', '*', 'b'])
-    ir.DF(2)
-    ir.FOO(1)
-    ir.LV('c')
-    ir.LV('a')
-    ir.BAR(2, 3)
-    print ir.lists
-    ir.check()
-    print '\n'.join(ir.out())
