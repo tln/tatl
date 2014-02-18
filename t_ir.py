@@ -1,24 +1,84 @@
 from OpList import *
 from cgi import escape  # for pre-quoting
 
-class Pre(OpType):pass
-class Post(OpType):pass
-class In(OpType):pass
 
-PreExpr = Pre.mk('expr')
-PreVar = Pre.mk('var')
-Pre1 = Pre.mk('arg')
+class Module:
+    def __init__(self):
+        self.code = Block(OpList())
+        self.functions = OrderedDict()
+        
+    def startdef(self, funcdef):
+        fn = self.functions[funcdef.name] = Function(funcdef)
+        return fn
+        
+    def done(self):
+        for fn in self.functions.values():
+            self.code.top.add(fn.done())
+        return self.code.done()
 
-Val = In.mk('val')
-Expr = In.mk('expr')
-Var = In.mk('var')
-Op0 = In.mk()
-Op1 = In.mk('arg')
+class Function:
+    def __init__(self, funcdef):
+        self.name = name
+        self.code = Block(target, OpList())
+        self.init = Block(target, OpList())
+        self.args = funcdef.args
+        funcdef.addto(self.init)
+        
+    def block(self):
+        return Block(self.code.top)
+        
+    def done(self):
+        self.init.top.add(self.code.done())
+        self.code = None
+        return self.init.done()
 
-VExpr = In.mk('var', 'expr')
-VVExpr = In.mk('var1', 'var2', 'expr')
-VVal = In.mk('var', 'val')
-VVar = In.mk('var', 'var')
+# ---------
+class StarExp(Wrap):
+    type = 'starexp'
+ 
+class StarArg(BasePart):
+    py = js = '*star*'
+STAR_ARG = StarArg()
+
+class Args(List):
+    def args(self):
+        return ['*' if p is STAR_ARG else p.lvar
+                for p in self.partlist]
+
+class Placeholder(BasePart):
+    type = 'placeholder'
+    def __init__(self, ast):
+        BasePart.__init__(self)
+        op, self.name = ast
+        self.type = {'*':'star','++':'plusplus'}[op]
+        self.py = self.js = '%s = _.%s()' % (self.name, self.type)
+        self.lvars = [self.name]
+
+class FuncDef(Part):
+    Code = Indent
+    def __init__(self, name, args, result, filters):
+        pyfmt = map('@%({})s\n'.format, range(len(filters)))
+        pyfmt.append('def %(name)s(%(args)s):')
+        jsfmt = ['%(name)s = '] + map('%({})s('.format, range(len(filters))) + [
+            'function %(name)s(%(args)s) {'
+        ]
+        Part.__init__(self, '\n'.join(pyfmt), ''.join(jsfmt), *filters, name=name, args=args)
+        self.result = result
+        self.filters = filters
+        
+    def addto(self, block):
+        block.top.add(self)
+        p = Expr([], 'dot = _.result()')
+        block.bot.add(p)
+        p = Part('return %(0)s', 'return %(0)s', self.result or Expr([], 'dot'))
+        block.bot.add(p)
+        p = Part('#done', '}'+')'*len(self.filters), Code=Dedent)
+        block.bot.add(p)
+    
+class If(namedtuple('If', 'set test'), Out): pass
+class Use(namedtuple('Use', 'set path arglist'), Out): pass
+class For(namedtuple('For', 'set stmt'), Out): pass
+class Top(namedtuple('Top', 'set exprs emit rest'), Out): pass
 
 class Emit: "mixin to ops that call emit"
 class EmitQ(Emit): quote = 1
@@ -27,23 +87,15 @@ class EmitU(Emit): quote = 0
 class For: "mixin to mark for loop start"
 
 class IR(OpList):
-    op_types = [Pre, In, Post]
-    def peephole(self):
-        self.check()
-        
-        ir = self.lists[1]
-        CombineC(ir).optimize()
-        CombineU(ir).optimize()
-        CombineEmitsFmt(ir).optimize()
-        StaticAttrs(ir).optimize()
-        #HoistQuote(ir).optimize()
-        
-        self.check()
-        return
-        
-    def finish(self):
-        self.peephole()
-    
+    optimizers = [
+        CombineC,
+        CombineU(,
+        CombineEmitsFmt,
+        StaticAttrs,
+        #HoistQuote,
+    ]
+
+
     _FL = 'FILT'
     class _FILT(PreExpr):  # FL FiLter (decorator)
         '@%s'
