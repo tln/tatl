@@ -1,4 +1,4 @@
-import ExprParser, ExprSemantics, t_compile, t_ir, OpList, t_tmpl
+import ExprParser, ExprSemantics, t_compile, IR, OpList, t_tmpl
 import json
 import os, sys, re
 import readline
@@ -21,9 +21,9 @@ def compile():
     if mtime('Expr.ebnf') > mtime('ExprParser.py'):
         os.system("grako -o ExprParser.py Expr.ebnf")
         reload(ExprParser)
-    reload(ExprSemantics)
     reload(OpList)
-    reload(t_ir)
+    reload(IR)
+    reload(ExprSemantics)
     reload(t_tmpl)
     reload(t_compile)
     parser = ExprParser.ExprParser(

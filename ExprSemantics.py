@@ -29,12 +29,15 @@ class ExprSemantics(ExprParser.ExprParser):
             result = IR.Part(fmt, fmt, filt, result)
         return result
 
+    @debug
     def setif(self, ast):
-        n = ast.lvar
+        n = ast.var
         fmt = '{0} = %(0)s {1} %(1)s'.format
-        return IR.Part(fmt(n, 'or'), fmt(n, '||'), IR.Expr([n], n, n), ast.expr)
+        result = IR.Part(fmt(n, 'or'), fmt(n, '||'), IR.Expr([n], n, n), ast.expr)
+        result.out()
+        return result
     
-    def set(self, ast):
+    def lset(self, ast):
         fmt = '%(lvar)s = %(expr)s'
         return IR.Part(fmt, fmt, lvar=ast.lvar, expr=ast.expr)
 
@@ -90,7 +93,7 @@ class ExprSemantics(ExprParser.ExprParser):
 
     def comp(self, ast):
         if len(ast) == 1:
-            return IR.Part('bool(%(0)s)s', 'bool(%(0)s)', ast[0])
+            return IR.Part('bool(%(0)s)', 'bool(%(0)s)', ast[0])
         else:
             # ast is arg, op, arg2, op, arg3 etc
             args = ast[::2]
@@ -205,14 +208,10 @@ class ExprSemantics(ExprParser.ExprParser):
         
     def forExpr(self, ast):
         if ast.n2:
-            pyfmt = 'for %(n1)s, %(n2)s in _.items(%(expr)s):'
-            jsfmt = 'for (%(n1)s in (_tmp = %(expr)s)) { %(n2)s = _tmp[%(n1)s];'
-            stmt = IR.Part(pyfmt, jsfmt, n1=ast.n1, n2=ast.n2, expr=ast.expr)
+            stmt = IR.For2(ast.n1, ast.n2, ast.expr)
         else: 
-            pyfmt = 'for %(n1)s in _.iter(%(expr)s):'
-            jsfmt = 'for (%(n1)s in %(expr)s) {'
-            stmt = IR.Part(pyfmt, jsfmt, n1=ast.n1 or IR.Lvar('dot'), expr=ast.expr)
-        return IR.For(set=ast.set or [], stmt=stmt)
+            stmt = IR.For1(ast.n1 or IR.Lvar('dot'), ast.expr)
+        return IR.For(ast.set or [], stmt)
             
     def lvar(self, ast):
         return IR.Lvar(ast)

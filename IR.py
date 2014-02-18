@@ -1,7 +1,7 @@
 from OpList import *
 from cgi import escape  # for pre-quoting
 
-
+# --------- Compiler API
 class Module:
     def __init__(self, source):
         self.block = Block(IR())
@@ -38,7 +38,6 @@ class Function:
         code = self.code.done()
         code.optimize()
 
-        print '----- add_locals -----'
         lvars = set()
         for op in code.ops:
             for rvar in op.rvars:
@@ -46,14 +45,62 @@ class Function:
                     InitLocal(rvar).addto(self.init)
                     lvars.add(rvar)
             lvars.update(op.lvars)
-            print '%-30.30r l:%s r:%s lvars:%s' % (op, op.lvars, op.rvars, lvars)
-        print '-----'
         
         self.init.top.combine(code)
         self.code = None
         return self.init.done()
 
-# ---------
+# -------- Major constructs created by ExprSemantics
+class FuncDef(Part):
+    Code = Indent
+    def __init__(self, name, args, result, filters):
+        pyfmt = map('@%({})s\n'.format, range(len(filters)))
+        pyfmt.append('def %(name)s(%(args)s):')
+        jsfmt = ['%(name)s = '] + map('%({})s('.format, range(len(filters))) + [
+            'function %(name)s(%(args)s) {'
+        ]
+        Part.__init__(self, '\n'.join(pyfmt), ''.join(jsfmt), *filters, 
+            name=Lvar(name), args=args)
+        self.result = result
+        self.filters = filters
+        
+    def addto(self, block):
+        block.top.add(self,
+            FuncPreamble('attr')
+            )
+        block.bot.add(
+            Expr([], 'dot = _.result()'),
+            Part('return %(0)s', 'return %(0)s', self.result or Expr([], 'dot')),
+            Part('#done', '}'+')'*len(self.filters), Code=Dedent),
+        )
+    
+class If(namedtuple('If', 'set test'), Out):
+    def addto(self, block):
+        for stmt in self.set:
+            stmt.addto(block)
+        block.top.add(IfStart(self.test))
+        block.bot.add(IfEnd())
+class Use(namedtuple('Use', 'set path arglist'), Out): pass
+class For(namedtuple('For', 'set stmt'), Out):
+    def addto(self, block):
+        for stmt in self.set:
+            stmt.addto(block)
+        block.top.add(self.stmt)
+        block.bot.add(ForEnd())
+class Top(namedtuple('Top', 'set exprs emit rest'), Out):
+    quoted = 1
+    def addto(self, block):
+        for stmt in self.set:
+            stmt.addto(block)
+        for expr in self.exprs:
+            expr.addto(block)
+        if self.emit:
+            if self.emit.type == 'star':
+                expr.addto(block)
+            else:
+                (EmitQExpr if self.quoted else EmitUExpr)(self.emit).addto(block)
+
+# -------- Additional Semantics created constructs
 class StarExp(Wrap):
     type = 'starexp'
  
@@ -81,66 +128,22 @@ class Placeholder(BasePart):
         self.py = self.js = '%s = _.%s()' % (self.name, self.type)
         self.lvars = [self.name]
 
-class FuncDef(Part):
-    Code = Indent
-    def __init__(self, name, args, result, filters):
-        pyfmt = map('@%({})s\n'.format, range(len(filters)))
-        pyfmt.append('def %(name)s(%(args)s):')
-        jsfmt = ['%(name)s = '] + map('%({})s('.format, range(len(filters))) + [
-            'function %(name)s(%(args)s) {'
-        ]
-        Part.__init__(self, '\n'.join(pyfmt), ''.join(jsfmt), *filters, 
-            name=Lvar(name), args=args)
-        self.result = result
-        self.filters = filters
-        
-    def addto(self, block):
-        block.top.add(self,
-            FuncPreamble('attr')
-            )
-        block.bot.add(
-            Expr([], 'dot = _.result()'),
-            Part('return %(0)s', 'return %(0)s', self.result or Expr([], 'dot')),
-            Part('#done', '}'+')'*len(self.filters), Code=Dedent),
-        )
-    
-class If(namedtuple('If', 'set test'), Out): pass
-class Use(namedtuple('Use', 'set path arglist'), Out): pass
-class For(namedtuple('For', 'set stmt'), Out): pass
-class Top:
-    def __init__(self, set, exprs, emit, rest):
-        self.set = set
-        self.exprs = exprs
-        self.quoted = 1
-        self.emit = emit
-        self.rest = rest
-
-    def addto(self, block):
-        for stmt in self.set:
-            stmt.addto(block)
-        for expr in self.exprs:
-            expr.addto(block)
-        if self.emit:
-            if self.emit.type == 'star':
-                expr.addto(block)
-            else:
-                (QE if self.quoted else UE)(self.emit).addto(block)
-
+# --------
 class _Val(ArgExpr): fields = ['val']
 class _Var(ArgExpr): fields = ['var']
 class _Expr(ArgPart): fields = ['expr']
 
-class C(_Val):
+class _End(BasePart):
+    py = '# end'
+    js = '}'
+    Code = Dedent
+
+class EmitQText(_Val):
     jsfmt = pyfmt = '_emit(%(val)r)'
 
-class U(_Val):
+class EmitUText(_Val):
     jsfmt = pyfmt = '_emit(%(val)r)'
 
-class Emit: "mixin to ops that call emit"
-class EmitQ(Emit): quote = 1
-class EmitU(Emit): quote = 0
-
-class For: "mixin to mark for loop start"
 
 class FuncPreamble(ArgExpr):
     fields = ['context']
@@ -155,24 +158,63 @@ class InitLocal(_Var):  # SV Setup local vars
     lvarfields = ['var']
     pyfmt = '%(var)s = _kw.get(%(var)r)'
     jsfmt = 'var %(var)s'
-    
-class T(ArgExpr):    # T -> C Constant or U Unquoted
-    fields = 'val', 'quoted'
-    def addto(self, block):
-        p = C(escape(self.val)) if self.quoted else U(self.val)
-        p.addto(block)
-        
-class QE(EmitQ, ArgPart):             # QE Quoted Expression
+            
+
+class _Emit(ArgPart):
     fields = ['expr']
+class EmitQExpr(_Emit):             # QE Quoted Expression
     pyfmt = jsfmt = '_emit(_q(%(expr)s))'
 #class _QV(EmitQ, _Var):              # QV Quoted local Var
 #    pyfmt = jsfmt = '_emit(_q(%(var)s))'
-class _UE(EmitU, ArgPart):             # UE Unquoted Expression
-    fields = ['expr']
+class EmitUExpr(_Emit):             # UE Unquoted Expression
     pyfmt = jsfmt = '_emit(%(expr)s)'
 #class _UV(EmitU, _Var):              # UV Unquoted local Var
 #    pyfmt = jsfmt = '_emit(%(var)s)'
 
+class IfStart(ArgPart):                 # IS If start
+    fields = ['test']
+    Code = Indent
+    pyfmt = 'if %(test)s:'
+    jsfmt = 'if (%(test)s) {'
+class IfEnd(_End): pass
+class Else(BasePart):
+    Code = DedentThenIndent
+    py = 'else:'
+    js = '} else {'
+class Elif(IfStart):
+    Code = DedentThenIndent
+    pyfmt = 'elif %(test)s:'
+    jsfmt = '} else if (%(test)s) {'
+    
+class ElideStart(BasePart):                 # SS Skip (elide) start
+    py = js = '_emit = _.elidestart()'
+class ElideEnd(BasePart):                 # SE Skip (elide) end
+    py = js = '_noelide, _content, _emit = _.elidecheck()'
+    def addto(self, block):
+        block.top.add(
+            self,
+            IfStart(Impl('_noelide')),
+            EmitUExpr(Impl('_content')),
+        )
+        block.bot.add(IfEnd())
+
+class For1(ArgPart):            # F1 for loop 1 var start (pass pair as arg)
+    fields = ['n1', 'expr']
+    pyfmt = 'for %(n1)s in _.iter(%(expr)s):'
+    jsfmt = 'for (%(n1)s in %(expr)s) {'
+    Code = Indent
+    
+class For2(ArgPart):         # F2 for loop 2 var start (pass triple as arg)
+    fields = ['n1', 'n2', 'expr']
+    pyfmt = 'for %(n1)s, %(n2)s in _.items(%(expr)s):'
+    jsfmt = 'for (%(n1)s in (_tmp = %(expr)s)) { %(n2)s = _tmp[%(n1)s];'
+    Code = Indent
+    
+class ForEnd(_End): pass               # FD for loop done
+    
+
+
+    
 """    
 #class _EMITTRICK1(In.mk('vars')):
 #    '_emit.__self__[999999:] = (%s)'
@@ -233,15 +275,6 @@ class _ELSE(D, I, Op0):
 class _ELIF(D, I, Expr):
     'elif %s:'
     
-class _ELIDESTART(Op0):                 # SS Skip (elide) start
-    '_emit = _.elidestart()'
-class _ELIDEEND(Op0):                 # SE Skip (elide) end
-    '_noelide, _content, _emit = _.elidecheck()'
-    def init(self, ir):
-        yield self
-        ir.IFSTART('_noelide')
-        ir.UV('_content')
-
 class _USESTART(Op0):                 # CS Call (use) start
     '_emit = _push()'
 class _USEEND(In.mk('expr', 'arglist')):
@@ -267,7 +300,7 @@ class _SET(Op1):                 # Assignment
 """
 
 class CombineC(Peepholer):
-    cls = C
+    cls = EmitQText
     def optimize_run(self, ops):
         v = ''.join([op.val for op in ops])
         if not v: return []
@@ -275,10 +308,10 @@ class CombineC(Peepholer):
         return ops[-1:]
 
 class CombineU(CombineC):
-    cls = U
+    cls = EmitUText
 
 class CombineEmits(Peepholer):
-    cls = (Emit, C)
+    cls = (_Emit, EmitQText)
     def optimize_run(self, ops):
         if len(ops) < 2: return
             
@@ -290,7 +323,7 @@ class CombineEmits(Peepholer):
         return [op]
 
 class CombineEmitsFmt(Peepholer):
-    cls = (Emit, C, U)
+    cls = (_Emit, EmitQText, EmitUText)
     def optimize_run(self, ops):
         if len(ops) < 2: return
         fmt = ''
@@ -308,8 +341,9 @@ class CombineEmitsFmt(Peepholer):
 
 
 class HoistQuote(StartEndPeepholer):
+    "Non-functional -- hoist quoting into _.iter. Doesn't help bigtable.py that much..."
     start = ()  #FOR2   # s/bFor
-    middle = (EmitQ, C, EmitU)
+    middle = (_Emit, EmitQText)
     end = () #ENDFOR
     
     def optimize_run(self, ops):

@@ -12,7 +12,7 @@ from __future__ import print_function, division, absolute_import, unicode_litera
 from grako.parsing import * # @UnusedWildImport
 from grako.exceptions import * # @UnusedWildImport
 
-__version__ = '14.047.23.27.51'
+__version__ = '14.049.20.21.17'
 
 class ExprParser(Parser):
     def __init__(self, whitespace=None, nameguard=True, **kwargs):
@@ -209,21 +209,15 @@ class ExprParser(Parser):
         with self._group():
             with self._choice():
                 with self._option():
-                    with self._group():
-                        with self._choice():
-                            with self._option():
-                                self._set_()
-                            with self._option():
-                                self._setif_()
-                            self._error('no available options')
+                    self._set_()
                     self.ast.add_list('set', self.last_node)
                 with self._option():
                     with self._group():
-                        def block4():
+                        def block3():
                             self._expr_()
                             self.ast.add_list('exprs', self.last_node)
                             self._token(';')
-                        self._closure(block4)
+                        self._closure(block3)
                         with self._optional():
                             self._topemitexpr_()
                             self.ast['emit'] = self.last_node
@@ -232,6 +226,15 @@ class ExprParser(Parser):
 
     @rule_def
     def _set_(self):
+        with self._choice():
+            with self._option():
+                self._lset_()
+            with self._option():
+                self._setif_()
+            self._error('no available options')
+
+    @rule_def
+    def _lset_(self):
         self._lvar_()
         self.ast['lvar'] = self.last_node
         self._token('=')
@@ -623,7 +626,7 @@ class ExprParser(Parser):
 
     @rule_def
     def _NAME_(self):
-        self._pattern(r'[a-zA-Z_][a-zA-Z0-9_]*')
+        self._pattern(r'[a-zA-Z][a-zA-Z0-9_]*')
 
     @rule_def
     def _INT_(self):
@@ -744,6 +747,9 @@ class ExprSemantics(object):
         return ast
 
     def set(self, ast):
+        return ast
+
+    def lset(self, ast):
         return ast
 
     def lvar(self, ast):

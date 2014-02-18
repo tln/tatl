@@ -23,9 +23,10 @@ paramExpr = @+:lvar {',' @+:lvar} ;
 useExpr = {set+:set ';'} path:path [arglist:callargs];
 	callargs = '(' [@expr {',' @expr} [',']] ')';
 
-top = '{' {set+:set ';'} (set+:(set|setif) | ({exprs+:expr ';'} [emit:topemitexpr])) '}';
+top = '{' {set+:set ';'} (set+:set | ({exprs+:expr ';'} [emit:topemitexpr])) '}';
 
-	set = lvar:lvar '=' expr:expr ;
+	set = lset | setif ;
+	lset = lvar:lvar '=' expr:expr ;
 		lvar = NAME ;
 	setif = var:NAME ('=?'|'?=') expr:expr ;
 

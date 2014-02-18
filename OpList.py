@@ -158,7 +158,14 @@ class Value(BasePart):
         BasePart.__init__(self)        
         self.py = py
         self.js = js or py
- 
+
+class Impl(BasePart):
+    "Reference to implementation variable"
+    def __init__(self, py, js=None):
+        BasePart.__init__(self)        
+        self.py = py
+        self.js = js or py
+    
  
 class Wrap(BasePart):
     def __init__(self, part):
