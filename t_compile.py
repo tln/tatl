@@ -1,7 +1,7 @@
-from bs4 import BeautifulSoup, Tag, NavigableString
+import bs4
 import sys
+import json
 import ExprParser, ExprSemantics
-from collections import defaultdict as _defdict, namedtuple
 from cgi import escape
 
 import IR
@@ -11,15 +11,9 @@ def run_file(f):
 
 def compile(s, source, out='py'):
     """Return Python that implements the template"""
-    dom = BeautifulSoup(s)
+    dom = bs4.BeautifulSoup(s)
     c = Compiler(source)
-    root = dom.contents[0]
-    root.attrs.setdefault('def', "html(*)")
-    for attr in 'if', 'for':
-        if attr in root.attrs:
-            warn("Attr not allowed on root tag: "+attr)
-            del root.attrs[attr]
-    c.tag(root)
+    c.root(dom)
     if out[:2] == 'ir':
         return '\n\n'.join([ir.view() for ir in c.module.ir])
     c.module.done()
@@ -43,6 +37,9 @@ class Compiler:
         self.lastfn = []
         self.fn = None
         
+    def root(self, dom):
+        self.firsttag = 1
+        self._children(self._Tagstate('[root]', None, None), dom)
     def startdef(self, funcdef):
         self.lastfn.append(self.fn)
         self.fn = self.module.startdef(funcdef)
@@ -84,9 +81,19 @@ class Compiler:
         # check that name != 'do'
         return ts.name
     
+    
+    def _check_attrs(self, attrs, ts):
+        if self.firsttag:
+            attrs.setdefault('def', "html(*)")
+            for attr in 'if', 'for':
+                if attr in attrs:
+                    warn("Attr not allowed on root tag: "+attr)
+                    del attrs[attr]
+                    
     _attrs = 'param', 'def', 'set', 'use', 'for', 'if'
     def _process_attrs(self, attrs, ts):
         attrs = attrs.copy()
+        self._check_attrs(attrs, ts)
         for attr in self._attrs:
             if attr not in attrs: continue
             v = self._default(attr, ts, attrs.pop(attr))
@@ -132,7 +139,6 @@ class Compiler:
             self.name = name
             self.id = id
             self.block = block
-
         def __getattr__(self, name):
             if name[:1] == '_': raise AttributeError
             cls = getattr(IR, name)
@@ -191,7 +197,7 @@ class Compiler:
                 break
         else:
             warn("No if found for <else>")
-            return self._children(tag)
+            return self._children(ts, tag)
              
         if tags:
             warn("<else> synthesized tags: "+str(tags))
@@ -218,10 +224,37 @@ class Compiler:
     
     def _children(self, ts, tag):
         for c in tag.children:
-            if isinstance(c, NavigableString):
-                self.parse_text(ts, c)
-            else:
+            typ = c.__class__ 
+            if typ is bs4.Tag:
                 self.tag(c)
+            elif typ is bs4.NavigableString:
+                self.parse_text(ts, c)
+            elif typ is bs4.Comment and c[:1] == '{':
+                self._front_matter(ts, c)
+            elif typ is bs4.Comment and c[:1] != '[':
+                # comments ignored
+                pass
+            elif self.fn is None:
+                # before first tag, we can't emit
+                warn("Can't emit %s: %s" % (c.__class__.__name__, c))
+            else:
+                self.emit_other(ts, c)
+
+    def _front_matter(self, ts, c):
+        # update current fn/module... ideas for keys:
+        # package, doc, param docs / required, sample data
+        try:
+            d = json.loads(c)
+        except:
+            warn("Front matter cannot be loaded in <%s>" % ts.name)
+        print 'Front matter:', d
+
+    def emit_other(self, ts, c):
+        # Emit other kind of node (CData, PI, )
+        text = bs4.BeautifulSoup('')
+        text.contents.append(c)
+        text = unicode(text)
+        ts.EmitQText(text)
     
     def parse_text(self, ts, text, quoted=1):
         result = []
