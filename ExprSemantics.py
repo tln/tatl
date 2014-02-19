@@ -29,7 +29,6 @@ class ExprSemantics(ExprParser.ExprParser):
             result = IR.Part(fmt, fmt, filt, result)
         return result
 
-    @debug
     def setif(self, ast):
         n = ast.var
         fmt = '{0} = %(0)s {1} %(1)s'.format
@@ -219,8 +218,9 @@ class ExprSemantics(ExprParser.ExprParser):
     def paramExpr(self, ast):
         return ast
         
+    def callargs(self, ast):
+        return [] if ast == ['(', ')'] else ast       
 
-    @debug
     def useExpr(self, ast):
         # step, path, arglist
-        return IR.Use(ast.set or [], ast.path, ast.arglist and IR.List(ast.arglist))
+        return IR.Use(ast.set or [], ast.path, ast.arglist)

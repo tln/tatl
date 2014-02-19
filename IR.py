@@ -30,12 +30,17 @@ class Function:
         self.init = Block(IR())
         self.args = funcdef.args
         funcdef.addto(self.init)
-        
+            
+    def add_params(self, params):
+        #TODO check for duplicates
+        map(self.args.add_arg, params)
+    
     def block(self):
         return Block(self.code.top)
         
     def done(self):
         code = self.code.done()
+        code.combine(self.init.bot)
         code.optimize()
 
         lvars = set()
@@ -46,21 +51,18 @@ class Function:
                     lvars.add(rvar)
             lvars.update(op.lvars)
         
-        self.init.top.combine(code)
+        self.init.bot = code
         self.code = None
         return self.init.done()
 
 # -------- Major constructs created by ExprSemantics
-class FuncDef(Part):
+class FuncDef(ArgPart):
+    fields = ['name', 'args']
     Code = Indent
+    pyfmt = 'def %(name)s(%(args)s):'
+    jsfmt = 'function %(name)s(%(args)s) {'
     def __init__(self, name, args, result, filters):
-        pyfmt = map('@%({})s\n'.format, range(len(filters)))
-        pyfmt.append('def %(name)s(%(args)s):')
-        jsfmt = ['%(name)s = '] + map('%({})s('.format, range(len(filters))) + [
-            'function %(name)s(%(args)s) {'
-        ]
-        Part.__init__(self, '\n'.join(pyfmt), ''.join(jsfmt), *filters, 
-            name=Lvar(name), args=args)
+        ArgPart.__init__(self, Lvar(name), args)
         self.result = result
         self.filters = filters
         
@@ -71,7 +73,8 @@ class FuncDef(Part):
         block.bot.add(
             Expr([], 'dot = _.result()'),
             Part('return %(0)s', 'return %(0)s', self.result or Expr([], 'dot')),
-            Part('#done', '}'+')'*len(self.filters), Code=Dedent),
+            FuncEnd(),
+            *[Filter(self.name, filt) for filt in self.filters]
         )
     
 class If(namedtuple('If', 'set test'), Out):
@@ -80,7 +83,18 @@ class If(namedtuple('If', 'set test'), Out):
             stmt.addto(block)
         block.top.add(IfStart(self.test))
         block.bot.add(IfEnd())
-class Use(namedtuple('Use', 'set path arglist'), Out): pass
+class Use(namedtuple('Use', 'set path arglist'), Out):
+    def addto(self, block):
+        for stmt in self.set:
+            stmt.addto(block)
+        
+        block.top.add(UseStart())
+        block.bot.add(UseEnd0())
+        
+        if self.arglist is None:
+            end = UseEndAuto(self.path)
+        else:
+            end = UseEndArgs(self.path, self.arglist)
 class For(namedtuple('For', 'set stmt'), Out):
     def addto(self, block):
         for stmt in self.set:
@@ -108,17 +122,29 @@ class StarArg(BasePart):
     py = js = '*star*'
 STAR_ARG = StarArg()
 
-class Args(List):
+class Args(BasePart):
     def __init__(self, args):
+        BasePart.__init__(self)
+        self.args = args
         try:
-            self.addix = args.index(STAR_ARG)
-            del args[self.addix]
+            self.addix = self.args.index(STAR_ARG)
+            del self.args[self.addix]
         except:
-            self.addix = len(args)-1
-        List.__init__(self, args)
-        self.py += ', **_kw'.lstrip(', ')
-    
+            self.addix = len(self.args)-1        
+        map(self.add, self.args)
+        self.calc()
 
+    def calc(self):
+        self.py = ', '.join(p.code('py')+'=None' for p in self.args) + ', **_kw'
+        self.py = self.py.lstrip(', ')
+        self.js = ', '.join(p.code('js') for p in self.args)        
+        
+    def add_arg(self, lvar):
+        assert lvar.lvars
+        self.args.insert(self.addix, lvar)
+        self.add(lvar)
+        self.calc()
+    
 class Placeholder(BasePart):
     type = 'placeholder'
     def __init__(self, ast):
@@ -144,11 +170,15 @@ class EmitQText(_Val):
 class EmitUText(_Val):
     jsfmt = pyfmt = '_emit(%(val)r)'
 
-
+class Filter(ArgPart):
+    fields = ['name', 'filt']
+    pyfmt = jsfmt = '%(name)s = %(filt)s(%(name)s)'
+    
 class FuncPreamble(ArgExpr):
     fields = ['context']
     pyfmt = jsfmt = '_, _q, _emit = t_tmpl._ctx(%(context)r)'
 
+class FuncEnd(_End): pass
 class Import(ArgExpr):
     pyfmt = 'import %(arg)s'
     jsfmt = "var %(arg)s = require(%(arg)r)"
@@ -167,7 +197,7 @@ class EmitQExpr(_Emit):             # QE Quoted Expression
 #class _QV(EmitQ, _Var):              # QV Quoted local Var
 #    pyfmt = jsfmt = '_emit(_q(%(var)s))'
 class EmitUExpr(_Emit):             # UE Unquoted Expression
-    pyfmt = jsfmt = '_emit(%(expr)s)'
+    pyfmt = jsfmt = '_emit(unicode(%(expr)s))'
 #class _UV(EmitU, _Var):              # UV Unquoted local Var
 #    pyfmt = jsfmt = '_emit(%(var)s)'
 
@@ -203,18 +233,49 @@ class For1(ArgPart):            # F1 for loop 1 var start (pass pair as arg)
     pyfmt = 'for %(n1)s in _.iter(%(expr)s):'
     jsfmt = 'for (%(n1)s in %(expr)s) {'
     Code = Indent
-    
 class For2(ArgPart):         # F2 for loop 2 var start (pass triple as arg)
     fields = ['n1', 'n2', 'expr']
     pyfmt = 'for %(n1)s, %(n2)s in _.items(%(expr)s):'
     jsfmt = 'for (%(n1)s in (_tmp = %(expr)s)) { %(n2)s = _tmp[%(n1)s];'
-    Code = Indent
-    
+    Code = Indent  
 class ForEnd(_End): pass               # FD for loop done
     
 
+class SetStart(BasePart):                 # LS Local (set) start
+    py = js = '_emit = _.push()'
+class SetEnd(ArgPart):
+    fields = ['var', 'tagname']
+    pyfmt = jsfmt = '%(var)s, _emit = _.buildtag(%(tagname)r, _attrs)'
+    def addto(self, block):
+        block.bot.add(self)
+class StartAttrs(ArgExpr):
+    fields = ['attrs']
+    pyfmt = jsfmt = '_attrs = %(attrs)r'
+class StartAttr(BasePart):
+    py = js = '_emit = _.push()'
+class EndAttr(ArgExpr):
+    fields = ['attr']
+    pyfmt = jsfmt = '_attrs[%(attr)r], _emit = _.pop()'
+class EndAttrs(BasePart):
+    py = js = '#end attrs'
+
 
     
+
+class UseStart(BasePart):                 # CS Call (use) start
+    py = js = '_emit = _.push()'
+class UseEnd0(BasePart):
+    py = 'dot, _emit = _.pop()'
+    js = '*not implemented*'
+class UseEndAuto(ArgPart):
+    fields = ['expr']
+    pyfmt = '_emit(_.applyauto(%(expr)s, locals()))'
+    jsfmt = '*not implemented*'
+class UseEndArgs(ArgPart):
+    fields = ['expr', 'callargs']
+    pyfmt = jsfmt = '_emit(_.applyargs(%(expr)s, %(callargs)s))'
+
+
 """    
 #class _EMITTRICK1(In.mk('vars')):
 #    '_emit.__self__[999999:] = (%s)'
@@ -225,11 +286,6 @@ class _EMITFMT(In.mk('fmt', 'vars')):
     def code(self):
         return self.__doc__ % (self.fmt, ', '.join(self.vars))
 
-_LS = 'SETSTART'
-class _SETSTART(Op0):                 # LS Local (set) start
-    '_emit = _.push()'
-class _SETEND(In.mk('var', 'tag')):
-    '%s, _emit = _.buildtag(%r, _attrs)'
 class _STARTATTRS(In.mk('attrs')):
     '_attrs = %r'
 class _STARTATTR(Op0):

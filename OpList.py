@@ -62,7 +62,7 @@ class BasePart(Op):
         
     Code = Code
     def code(self, target):
-        assert target in 'py', 'js'
+        assert target in ('py', 'js')
         return self.Code(getattr(self, target))
         
     type = ''
@@ -92,6 +92,7 @@ class ArgExpr(BasePart):
     fields = []
     lvarfields = []
     rvarfields = []
+    noaddfields = []
     def __init__(self, *args):
         BasePart.__init__(self)
         assert len(args) == len(self.fields)
@@ -124,13 +125,22 @@ class Part(BasePart):
         self.js = jsfmt % jsfrags
         self.__dict__.update(partkw)
 
-class ArgPart(Part):
+class ArgPart(BasePart):
     fields = []
     pyfmt = jsfmt = '*not implemented*'
     def __init__(self, *args):
+        BasePart.__init__(self)
         assert len(args) == len(self.fields)
-        partkw = dict(zip(self.fields, args))
-        Part.__init__(self, self.pyfmt, self.jsfmt, **partkw)
+        self.__dict__.update(dict(zip(self.fields, args)))
+        map(self.add, args)
+    
+    def code(self, target):
+        fmt = getattr(self, target+'fmt')
+        d = dict([
+            (f, getattr(self, f).code(target))
+            for f in self.fields
+        ])
+        return self.Code(fmt % d)
     
 class List(BasePart):
     def __init__(self, partlist, join=', '):
@@ -143,8 +153,17 @@ class List(BasePart):
 class Lvar(BasePart):
     def __init__(self, lvar):
         BasePart.__init__(self)
+        self.lvar = lvar
         self.lvars = [lvar]
         self.py = self.js = lvar
+class Asgn(Part):
+    def __init__(self, lvar, expr):
+        if isinstance(lvar, basestring):
+            lvar = Lvar(lvar)
+        if isinstance(expr, basestring):
+            expr = Expr([expr], expr, expr)
+        fmt = '%(lvar)s = %(expr)s'
+        Part.__init__(self, fmt, fmt, lvar=lvar, expr=expr)
         
 class Expr(BasePart):
     def __init__(self, rvars, py, js=None):
