@@ -1,4 +1,4 @@
-from OpList import *
+from tatl.OpList import *
 from cgi import escape  # for pre-quoting
 
 RESERVED = ['var']
@@ -8,7 +8,7 @@ class Module:
     def __init__(self, source):
         self.block = Block(IR())
         self.functions = OrderedDict()
-        self.add_import('t_tmpl')
+        self.add_import('tatlrt')
         
     def startdef(self, funcdef):
         fn = self.functions[funcdef.name] = Function(funcdef)
@@ -65,7 +65,7 @@ class FuncDef(ArgPart):
     fields = ['name', 'args']
     Code = Indent
     pyfmt = 'def %(name)s(%(args)s):'
-    jsfmt = '%(name)s = t_tmpl._bind(function %(name)s(%(args)s) {'
+    jsfmt = '%(name)s = tatl._bind(function %(name)s(%(args)s) {'
     def __init__(self, name, args, result, filters):
         ArgPart.__init__(self, Lvar(name), args)
         self.result = result
@@ -163,13 +163,13 @@ class Placeholder(BasePart):
 
 class RangeIncl(ArgPart):
     fields = ['n', 'm']
-    pyfmt = 't_tmpl.range_incl(%(n)s, %(m)s)'
-    jsfmt = 't_tmpl.range(%(n)s, %(m)s, true)'
+    pyfmt = 'tatlrt.range_incl(%(n)s, %(m)s)'
+    jsfmt = 'tatlrt.range(%(n)s, %(m)s, true)'
 
 class RangeExcl(ArgPart):
     fields = ['n', 'm']
-    pyfmt = 't_tmpl.range_excl(%(n)s, %(m)s)'
-    jsfmt = 't_tmpl.range(%(n)s, %(m)s, false)'
+    pyfmt = 'tatlrt.range_excl(%(n)s, %(m)s)'
+    jsfmt = 'tatlrt.range(%(n)s, %(m)s, false)'
 
 # --------
 class _Val(ArgExpr): fields = ['val']
@@ -195,14 +195,14 @@ class Filter(ArgPart):
     
 class FuncPreamble(ArgExpr):
     fields = ['context']
-    pyfmt = '_, _q, _emit = t_tmpl._ctx(%(context)r)'
-    jsfmt = 'var _ = t_tmpl._ctx(%(context)r);'
+    pyfmt = '_, _q, _emit = tatlrt._ctx(%(context)r)'
+    jsfmt = 'var _ = tatlrt._ctx(%(context)r);'
 
 class FuncEnd(_End):
     js = '})'
 class Import(ArgExpr):
     pyfmt = 'import %(arg)s'
-    jsfmt = "var %(arg)s = require('./'+%(arg)r)"    # hack! ./t_tmpl
+    jsfmt = "var %(arg)s = require(%(arg)r)"    # hack! ./t_tmpl
     lvarfields = fields = ['arg']
 
 class InitLocal(_Var):  # SV Setup local vars

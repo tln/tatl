@@ -4,7 +4,7 @@ import json
 import ExprParser, ExprSemantics
 from cgi import escape
 
-import IR
+from tatl import IR
 
 def run_file(f):
     return run_string(open(f).read())

@@ -1,5 +1,4 @@
-import ExprParser
-import IR
+from tatl import ExprParser, IR
 
 def debug(retry):
     def inner(*args, **kw):
