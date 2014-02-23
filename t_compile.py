@@ -14,18 +14,27 @@ def compile(s, source, out='py'):
     dom = bs4.BeautifulSoup(s)
     c = Compiler(source)
     c.root(dom)
-    if out[:2] == 'ir':
-        return '\n\n'.join([ir.view() for ir in c.module.ir])
     c.module.done()
-    if out in ('py', 'js'):
-        return c.module.code(out)
-    elif out == 'run':
-        d = {}
-        py = c.module.code('py')
-        exec py in d, d
-        return d['html'](a='a', b=[1, 2], c=1, d={'a':'AA', 'b': [1,2,3]})
-    raise ValueError, "invalid out: %r" % out
-
+    if out == 'ir':
+        return c.module.view()
+    assert out in ('py', 'js')
+    code = c.module.code(out)
+    if out == 'js':
+        #HACK!!! this has to be done throughout IR....
+        code = code.replace("u'", "'").replace('u"', '"')
+    return code
+    
+def main():
+    for inp in sys.argv[1:]:
+        if not inp.endswith('.html'):
+            print "Expected .html file:", inp
+            continue
+        html = open(inp).read()
+        py = inp[:-5] + '.py'
+        open(py, 'w').write(compile(html, inp, 'py'))
+        js = inp[:-5] + '.js'
+        open(js, 'w').write(compile(html, inp, 'js'))
+    
 class Compiler:
     def __init__(self, source):
         self.module = IR.Module(source)
@@ -53,6 +62,7 @@ class Compiler:
         ts = self._Tagstate(tag.name, tag.get('id'), self.fn and self.fn.block())
         self.tags.append(ts)
         self._process_attrs(tag.attrs, ts)
+        self.firsttag = 0
         self._children(ts, tag)
         self._finalize(ts)
         self.tags.pop()
@@ -247,10 +257,12 @@ class Compiler:
             d = json.loads(c)
         except:
             warn("Front matter cannot be loaded in <%s>" % ts.name)
+            d = None
         print 'Front matter:', d
 
     def emit_other(self, ts, c):
         # Emit other kind of node (CData, PI, )
+        print "emit_other!"
         text = bs4.BeautifulSoup('')
         text.contents.append(c)
         text = unicode(text)
@@ -259,18 +271,18 @@ class Compiler:
     def parse_text(self, ts, text, quoted=1):
         result = []
         ix = text.find('{')
-
-        
-        while ix > -1:
-            if text[ix:ix+2] == '{{':
-                ix = text.find('{', ix+2)
-                if ix == -1: break
+        if quoted:
+            emit = lambda t: ts.EmitQText(escape(t.replace('}}', '}')))
+        else:
+            emit = lambda t: ts.EmitUText(t.replace('}}', '}'))
+        while ix > -1 and ix < len(text) - 2:
+            if text[ix+1] == '{':
+                emit(text[:ix+1])
+                text = text[ix+2:]
+                ix = text.find('{')
                 continue
             if ix > 0:
-                if quoted:
-                    ts.EmitQText(escape(text[:ix]))
-                else:
-                    ts.EmitUText(text[:ix])
+                emit(text[:ix])
                 text = text[ix:]
             Top = self.parser.parse(text, rule_name='top')
             text = Top.rest
@@ -279,10 +291,7 @@ class Compiler:
             Top.addto(ts.block)
 
             ix = text.find('{')
-        if quoted:
-            ts.EmitQText(escape(text))
-        else:
-            ts.EmitUText(text)
+        emit(text)
         
 def warn(s):
     print "Warning:", s
@@ -522,9 +531,7 @@ total: {.sum}
 TESTS = map(str.strip, TESTS.split('----'))
 del TESTS[5:]  # just do 5
 
-
-
-if __name__ == '__main__':
+def test():
     import sys
     def read(f): 
         with open(f) as fh:
@@ -545,5 +552,6 @@ if __name__ == '__main__':
         except Exception, e:
             import traceback
             traceback.print_exc()
-        
-        
+
+if __name__ == '__main__':
+    main()

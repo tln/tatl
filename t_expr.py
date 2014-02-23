@@ -1,4 +1,12 @@
-import ExprParser, ExprSemantics, t_compile, IR, OpList, t_tmpl
+import os
+
+# Generate if needed
+if not os.path.exists('ExprParser.py'):
+    os.system("grako -o ExprParser.py Expr.ebnf")
+
+import ExprParser
+
+import ExprSemantics, t_compile, IR, OpList, t_tmpl
 import json
 import os, sys, re
 import readline
@@ -120,7 +128,20 @@ def run(inp, debug=0):
     if rule[:2] == 'c.':
         if debug:
             pdb.set_trace()
-        return t_compile.compile(inp, '<py>', out=out)
+        code = t_compile.compile(inp, '<py>', out=out[-2:])
+        if out == 'runpy':
+            d = {}
+            exec code in d, d
+            return d['html'](a='a', b=[1, 2], c=1, d={'a':'AA', 'b': [1,2,3]})
+        elif out in ('runjs', 'run+js'):
+            with open('_tmp.js', 'w') as f:
+                f.write(code+'\n\n')
+                f.write('''console.log(html.call({a:'a', b:[1,2], c:1, d:{'a':'AA', 'b': [1,2,3]}}))\n''')
+            result = os.popen('node _tmp.js 2>&1').read()
+            if out == 'run+js':
+                return code + '\n\n' + result
+        else:
+            return code
     else:
         ExprSemantics.DEBUG = debug
         ast = parser.parse(inp, rule_name=rule, trace=trace)
@@ -166,6 +187,7 @@ while 1:
             continue
         if inp.startswith('out '):
             out = inp[4:]
+            inp - last
         if inp == 'unused':
             print t_
         if not inp:

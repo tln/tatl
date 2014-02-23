@@ -56,6 +56,19 @@ class ExprSemantics(ExprParser.ExprParser):
             return IR.Part(fmt, fmt, ast.path, ast.lookup)
         return ast.path
 
+    def pname(self, ast):
+        if ast in IR.RESERVED:
+            raise SyntaxError("%r is a reserved name")
+        if ast[:1] == '_':
+            raise SyntaxError("names beginning with underscores are reserved")
+
+    def name(self, ast):
+        if ast[:1] == '_':
+            raise SyntaxError("names beginning with underscores are reserved")
+        if ast in IR.RESERVED:
+            return '_'+ast
+        return ast
+
     def number(self, ast):
         return IR.Value(ast)
 
@@ -73,11 +86,7 @@ class ExprSemantics(ExprParser.ExprParser):
 
     def range(self, ast):
         arg1, op, arg2 = ast
-        fmt = {
-            '..': 'range(%(0)s, %(1)s)', 
-            '...':'range(%(0)s, %(1)s+1)'
-        }[op]
-        return IR.Part(fmt, fmt, arg1, arg2)
+        return {'..': IR.RangeExcl, '...': IR.RangeIncl}[op](arg1, arg2)
 
     def eqop(self, op):
         return {

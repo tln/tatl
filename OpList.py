@@ -111,6 +111,7 @@ class ArgExpr(BasePart):
         return self.Code(fmt % self.__dict__)
 
 class Part(BasePart):
+    
     def __init__(self, pyfmt, jsfmt, *parts, **partkw):
         BasePart.__init__(self)
         pyfrags = {}
@@ -241,7 +242,7 @@ class OpList:
                 indent = op.Code.indent-op.Code.dedent
             except:
                 indent = 0
-            yield '%2d %s' % (indent, op)
+            yield '%2d %r' % (indent, op)
 
     @join
     def code(self, target):

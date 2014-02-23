@@ -14,6 +14,13 @@ def load(template):
         f.write(code)
     return __import__(template)
         
+        
+def range_incl(n, m):
+    return range(n, m+1) if n < m else range(n, m-1, -1)
+    
+def range_excl(n, m):
+    return range(n, m) if n < m else range(n-1, m-1, -1)
+        
 class _Vars(object):
     def __init__(self, locals):
         self.__dict__.update(locals.pop('_kw', {}))
@@ -240,10 +247,10 @@ class _Forloop(object):
         l = []
         if self.preclass and self.pre:
             l.append(self.preclass)
-        if self.firstclass and self.first: 
+        if self.firstclass and self.first:
             l.append(self.firstclass)
-        if self.cycle: 
-            l.append(self.counter0 % len(self.cycle))
+        if self.cycle:
+            l.append(self.cycle[self.counter0 % len(self.cycle)])
         if self.lastclass and self.last:
             l.append(self.lastclass)
         if self.postclass and self.post:

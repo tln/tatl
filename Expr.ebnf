@@ -13,27 +13,28 @@ attrs = 'def="' @defExpr '"'
 	| 'set="' @setExpr '"' 
 	| 'use="' @useExpr '"' 
 	| top ;
-defExpr = name:NAME [args:arglist] ['=' result:expr] {filter+:filter} ;
+defExpr = name:name [args:arglist] ['=' result:expr] {filter+:filter} ;
 	arglist = '(' [@+:arg {',' @+:arg} [',']] ')' ;
-	arg = @NAME | @'*' ;
+	arg = @name | @'*' ;
+	name = NAME ;
 setExpr = lvar ;
 forExpr = {set+:set ';'} [n1:lvar [',' n2:lvar] 'in'] expr:expr ;
 ifExpr = {set+:set ';'} test:test ;
 paramExpr = @+:lvar {',' @+:lvar} ;
 useExpr = {set+:set ';'} path:path [arglist:callargs];
-	callargs = '(' [@+expr {',' @+expr} [',']] ')';
+	callargs = '(' [@+:expr {',' @+:expr} [',']] ')';
 
 top = '{' {set+:set ';'} (set+:set | ({exprs+:expr ';'} [emit:topemitexpr])) '}';
 
 	set = lset | setif ;
 	lset = lvar:lvar '=' expr:expr ;
-		lvar = NAME ;
-	setif = var:NAME ('=?'|'?=') expr:expr ;
+		lvar = name ;
+	setif = var:name ('=?'|'?=') expr:expr ;
 
 	topemitexpr = placeholder | filtexp ;
 		filtexp = expr:expr {filter+:filter} ;
 		filter = '|' (  @call | @path | @string) ;
-		placeholder = @('*' | '++') ':' @NAME ;
+		placeholder = @('*' | '++') ':' @name ;
 
 
 	expr = ternary | range | simpleexpr;
@@ -55,9 +56,10 @@ top = '{' {set+:set ';'} (set+:set | ({exprs+:expr ';'} [emit:topemitexpr])) '}'
 (*expr*)	call = fn:path '(' [arg+:expr {',' arg+:expr} [',']] ')' ;
 
 			path = path:(externalPath | dotPath | dottedPath) lookup:[lookup] ;
-				dottedPath =  @+:NAME {'.' @+:NAME}* ;
-				dotPath = @+:'.' [@+:NAME {'.' @+:NAME}*] ;
-				externalPath = module:NAME '::' path+:NAME {'.' path+:NAME} ;
+				dottedPath =  @+:name {'.' @+:pname}* ;
+				dotPath = @+:'.' [@+:pname {'.' @+:pname}*] ;
+				externalPath = module:pname '::' path+:pname {'.' path+:pname} ;
+					pname = NAME ; 
 (*simpleexpr*)	lookup = '[' @simpleexpr ']' ;
 
 			value = number | string ;
@@ -71,8 +73,8 @@ top = '{' {set+:set ';'} (set+:set | ({exprs+:expr ';'} [emit:topemitexpr])) '}'
 			map = '{' [@+:(member|starexp) {',' @+:(member|starexp)}] '}' ;
 				member = ( nkey:NAME | skey:STRING) ':' val:expr ;
 
-REGEX = ?/[/].*?[/]/?;
 NAME = ?/[a-zA-Z][a-zA-Z0-9_]*/? ;
+REGEX = ?/[/].*?[/]/?;
 INT = ?/[0-9]+/? ;
 DOT = '.' ;
 DOTS =   DOT | '.' {'.'}+ ;

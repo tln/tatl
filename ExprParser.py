@@ -12,7 +12,7 @@ from __future__ import print_function, division, absolute_import, unicode_litera
 from grako.parsing import * # @UnusedWildImport
 from grako.exceptions import * # @UnusedWildImport
 
-__version__ = '14.049.20.21.17'
+__version__ = '14.051.21.35.26'
 
 class ExprParser(Parser):
     def __init__(self, whitespace=None, nameguard=True, **kwargs):
@@ -88,7 +88,7 @@ class ExprParser(Parser):
 
     @rule_def
     def _defExpr_(self):
-        self._NAME_()
+        self._name_()
         self.ast['name'] = self.last_node
         with self._optional():
             self._arglist_()
@@ -121,12 +121,16 @@ class ExprParser(Parser):
     def _arg_(self):
         with self._choice():
             with self._option():
-                self._NAME_()
+                self._name_()
                 self.ast['@'] = self.last_node
             with self._option():
                 self._token('*')
                 self.ast['@'] = self.last_node
             self._error('expecting one of: *')
+
+    @rule_def
+    def _name_(self):
+        self._NAME_()
 
     @rule_def
     def _setExpr_(self):
@@ -188,11 +192,11 @@ class ExprParser(Parser):
         self._token('(')
         with self._optional():
             self._expr_()
-            self.ast['@'] = self.last_node
+            self.ast.add_list('@', self.last_node)
             def block1():
                 self._token(',')
                 self._expr_()
-                self.ast['@'] = self.last_node
+                self.ast.add_list('@', self.last_node)
             self._closure(block1)
             with self._optional():
                 self._token(',')
@@ -243,11 +247,11 @@ class ExprParser(Parser):
 
     @rule_def
     def _lvar_(self):
-        self._NAME_()
+        self._name_()
 
     @rule_def
     def _setif_(self):
-        self._NAME_()
+        self._name_()
         self.ast['var'] = self.last_node
         with self._group():
             with self._choice():
@@ -304,7 +308,7 @@ class ExprParser(Parser):
                 self._error('expecting one of: ++ *')
         self.ast['@'] = self.last_node
         self._token(':')
-        self._NAME_()
+        self._name_()
         self.ast['@'] = self.last_node
 
     @rule_def
@@ -489,11 +493,11 @@ class ExprParser(Parser):
 
     @rule_def
     def _dottedPath_(self):
-        self._NAME_()
+        self._name_()
         self.ast.add_list('@', self.last_node)
         def block1():
             self._token('.')
-            self._NAME_()
+            self._pname_()
             self.ast.add_list('@', self.last_node)
         self._closure(block1)
 
@@ -502,26 +506,30 @@ class ExprParser(Parser):
         self._token('.')
         self.ast.add_list('@', self.last_node)
         with self._optional():
-            self._NAME_()
+            self._pname_()
             self.ast.add_list('@', self.last_node)
             def block2():
                 self._token('.')
-                self._NAME_()
+                self._pname_()
                 self.ast.add_list('@', self.last_node)
             self._closure(block2)
 
     @rule_def
     def _externalPath_(self):
-        self._NAME_()
+        self._pname_()
         self.ast['module'] = self.last_node
         self._token('::')
-        self._NAME_()
+        self._pname_()
         self.ast.add_list('path', self.last_node)
         def block2():
             self._token('.')
-            self._NAME_()
+            self._pname_()
             self.ast.add_list('path', self.last_node)
         self._closure(block2)
+
+    @rule_def
+    def _pname_(self):
+        self._NAME_()
 
     @rule_def
     def _lookup_(self):
@@ -621,12 +629,12 @@ class ExprParser(Parser):
         self.ast['val'] = self.last_node
 
     @rule_def
-    def _REGEX_(self):
-        self._pattern(r'[/].*?[/]')
-
-    @rule_def
     def _NAME_(self):
         self._pattern(r'[a-zA-Z][a-zA-Z0-9_]*')
+
+    @rule_def
+    def _REGEX_(self):
+        self._pattern(r'[/].*?[/]')
 
     @rule_def
     def _INT_(self):
@@ -725,6 +733,9 @@ class ExprSemantics(object):
     def arg(self, ast):
         return ast
 
+    def name(self, ast):
+        return ast
+
     def setExpr(self, ast):
         return ast
 
@@ -815,6 +826,9 @@ class ExprSemantics(object):
     def externalPath(self, ast):
         return ast
 
+    def pname(self, ast):
+        return ast
+
     def lookup(self, ast):
         return ast
 
@@ -839,10 +853,10 @@ class ExprSemantics(object):
     def member(self, ast):
         return ast
 
-    def REGEX(self, ast):
+    def NAME(self, ast):
         return ast
 
-    def NAME(self, ast):
+    def REGEX(self, ast):
         return ast
 
     def INT(self, ast):

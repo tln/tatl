@@ -1,6 +1,8 @@
 from OpList import *
 from cgi import escape  # for pre-quoting
 
+RESERVED = ['var']
+
 # --------- Compiler API
 class Module:
     def __init__(self, source):
@@ -23,6 +25,9 @@ class Module:
     def code(self, target):
         return self.block.top.code(target)
 
+    def view(self):
+        return self.block.top.view()
+
 class Function:
     def __init__(self, funcdef):
         self.name = funcdef.name
@@ -43,7 +48,7 @@ class Function:
         code.combine(self.init.bot)
         code.optimize()
 
-        lvars = set()
+        lvars = set(self.args.lvars)
         for op in code.ops:
             for rvar in op.rvars:
                 if rvar not in lvars:
@@ -60,7 +65,7 @@ class FuncDef(ArgPart):
     fields = ['name', 'args']
     Code = Indent
     pyfmt = 'def %(name)s(%(args)s):'
-    jsfmt = 'function %(name)s(%(args)s) {'
+    jsfmt = '%(name)s = t_tmpl._bind(function %(name)s(%(args)s) {'
     def __init__(self, name, args, result, filters):
         ArgPart.__init__(self, Lvar(name), args)
         self.result = result
@@ -76,6 +81,7 @@ class FuncDef(ArgPart):
             FuncEnd(),
             *[Filter(self.name, filt) for filt in self.filters]
         )
+        block.bot.add(Part('', 'exports.%(0)s = %(0)s', self.name))
     
 class If(namedtuple('If', 'set test'), Out):
     def addto(self, block):
@@ -154,6 +160,17 @@ class Placeholder(BasePart):
         self.py = self.js = '%s = _.%s()' % (self.name, self.type)
         self.lvars = [self.name]
 
+
+class RangeIncl(ArgPart):
+    fields = ['n', 'm']
+    pyfmt = 't_tmpl.range_incl(%(n)s, %(m)s)'
+    jsfmt = 't_tmpl.range(%(n)s, %(m)s, true)'
+
+class RangeExcl(ArgPart):
+    fields = ['n', 'm']
+    pyfmt = 't_tmpl.range_excl(%(n)s, %(m)s)'
+    jsfmt = 't_tmpl.range(%(n)s, %(m)s, false)'
+
 # --------
 class _Val(ArgExpr): fields = ['val']
 class _Var(ArgExpr): fields = ['var']
@@ -165,10 +182,12 @@ class _End(BasePart):
     Code = Dedent
 
 class EmitQText(_Val):
-    jsfmt = pyfmt = '_emit(%(val)r)'
+    pyfmt = '_emit(%(val)r)'
+    jsfmt = '_.emit(%(val)r);'
 
 class EmitUText(_Val):
-    jsfmt = pyfmt = '_emit(%(val)r)'
+    pyfmt = '_emit(%(val)r)'
+    jsfmt = '_.emit(%(val)r);'
 
 class Filter(ArgPart):
     fields = ['name', 'filt']
@@ -176,28 +195,32 @@ class Filter(ArgPart):
     
 class FuncPreamble(ArgExpr):
     fields = ['context']
-    pyfmt = jsfmt = '_, _q, _emit = t_tmpl._ctx(%(context)r)'
+    pyfmt = '_, _q, _emit = t_tmpl._ctx(%(context)r)'
+    jsfmt = 'var _ = t_tmpl._ctx(%(context)r);'
 
-class FuncEnd(_End): pass
+class FuncEnd(_End):
+    js = '})'
 class Import(ArgExpr):
     pyfmt = 'import %(arg)s'
-    jsfmt = "var %(arg)s = require(%(arg)r)"
+    jsfmt = "var %(arg)s = require('./'+%(arg)r)"    # hack! ./t_tmpl
     lvarfields = fields = ['arg']
 
 class InitLocal(_Var):  # SV Setup local vars
     lvarfields = ['var']
     pyfmt = '%(var)s = _kw.get(%(var)r)'
-    jsfmt = 'var %(var)s'
+    jsfmt = 'var %(var)s = this.%(var)s'
             
 
 class _Emit(ArgPart):
     fields = ['expr']
 class EmitQExpr(_Emit):             # QE Quoted Expression
-    pyfmt = jsfmt = '_emit(_q(%(expr)s))'
+    pyfmt = '_emit(_q(%(expr)s))'
+    jsfmt = '_.emit(_.q(%(expr)s));'
 #class _QV(EmitQ, _Var):              # QV Quoted local Var
 #    pyfmt = jsfmt = '_emit(_q(%(var)s))'
 class EmitUExpr(_Emit):             # UE Unquoted Expression
-    pyfmt = jsfmt = '_emit(unicode(%(expr)s))'
+    pyfmt = '_emit(unicode(%(expr)s))'
+    jsfmt = '_.emit(%(expr)s);'
 #class _UV(EmitU, _Var):              # UV Unquoted local Var
 #    pyfmt = jsfmt = '_emit(%(var)s)'
 
@@ -217,24 +240,34 @@ class Elif(IfStart):
     jsfmt = '} else if (%(test)s) {'
     
 class ElideStart(BasePart):                 # SS Skip (elide) start
-    py = js = '_emit = _.elidestart()'
+    py = '_emit = _.elidestart()'
+    js = '_.elidestart()'
 class ElideEnd(BasePart):                 # SE Skip (elide) end
-    py = js = '_noelide, _content, _emit = _.elidecheck()'
+    py = '_noelide, _content, _emit = _.elidecheck()'
+    js = '_content = _.pop();'
     def addto(self, block):
         block.top.add(
             self,
-            IfStart(Impl('_noelide')),
+            IfStart(Expr([], '_noelide', '_.elidecheck()')),
             EmitUExpr(Impl('_content')),
         )
         block.bot.add(IfEnd())
 
-class For1(ArgPart):            # F1 for loop 1 var start (pass pair as arg)
-    fields = ['n1', 'expr']
+class _Tmp(ArgPart):
+    tmp = 0
+    def __init__(self, *args):
+        tmp = Lvar('_tmp%d' % _Tmp.tmp)
+        _Tmp.tmp += 1
+        ArgPart.__init__(self, *args+(tmp,))    
+
+class For1(_Tmp):            # F1 for loop 1 var start (pass pair as arg)
+    fields = ['n1', 'expr', 'tmp']
     pyfmt = 'for %(n1)s in _.iter(%(expr)s):'
-    jsfmt = 'for (%(n1)s in %(expr)s) {'
+    jsfmt = 'for (_i in (%(tmp)s = %(expr)s)) { %(n1)s = %(tmp)s[_i];'
     Code = Indent
-class For2(ArgPart):         # F2 for loop 2 var start (pass triple as arg)
-    fields = ['n1', 'n2', 'expr']
+        
+class For2(_Tmp):         # F2 for loop 2 var start (pass triple as arg)
+    fields = ['n1', 'n2', 'expr', 'tmp']
     pyfmt = 'for %(n1)s, %(n2)s in _.items(%(expr)s):'
     jsfmt = 'for (%(n1)s in (_tmp = %(expr)s)) { %(n2)s = _tmp[%(n1)s];'
     Code = Indent  
@@ -266,7 +299,7 @@ class UseStart(BasePart):                 # CS Call (use) start
     py = js = '_emit = _.push()'
 class UseEnd0(BasePart):
     py = 'dot, _emit = _.pop()'
-    js = '*not implemented*'
+    js = 'dot = _.pop()'
 class UseEndAuto(ArgPart):
     fields = ['expr']
     pyfmt = '_emit(_.applyauto(%(expr)s, locals()))'
