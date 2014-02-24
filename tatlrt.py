@@ -21,8 +21,8 @@ def _attr_other(o, q=_escape):
         return ' '.join([_escape(unicode(item)) for item in o])
     return q(unicode(o))
 
-class Safe(tuple): pass
-_safe = lambda s: s[0]
+class safe(unicode): pass
+_safe = lambda s: s
 
 def _escape2(o, _e=_escape, _p=re.compile('''[<>&'"]''').search):
     if _p(o) is None:
@@ -42,7 +42,7 @@ class _Context(object):
     q_def = {
         int: unicode, 
         float: unicode, 
-        Safe: _safe,
+        safe: _safe,
     }
     q = {
         'none': (json.dumps, {

@@ -49,6 +49,7 @@ class Compiler:
     def root(self, dom):
         self.firsttag = 1
         self._children(self._Tagstate('[root]', None, None), dom)
+        
     def startdef(self, funcdef):
         self.lastfn.append(self.fn)
         self.fn = self.module.startdef(funcdef)
@@ -246,7 +247,11 @@ class Compiler:
             if typ is bs4.Tag:
                 self.tag(c)
             elif typ is bs4.NavigableString:
-                self.parse_text(ts, c)
+                if ts.block is None:
+                    if c.strip():
+                        warn("Top-level content ignored: %r", c.strip())
+                else:
+                    self.parse_text(ts, c)
             elif typ is bs4.Comment and c[:1] == '{':
                 self._front_matter(ts, c)
             elif typ is bs4.Comment and c[:1] != '[':
