@@ -54,6 +54,16 @@ var _proto = {
 	},
 	elidecheck: function () {
 		return this.qstack.shift()
+	},
+	get1: function (v, path) {
+		return v == undefined || v == null ? v : v[path]
+	},
+	get: function (v, paths) {
+		for (p in paths) {
+			if (v == undefined || v == null) break
+			v = v[p]
+		}
+		return v
 	}
 }
 var ents = {

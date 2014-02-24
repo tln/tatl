@@ -1,12 +1,11 @@
 import os
 
 # Generate if needed
-if not os.path.exists('ExprParser.py'):
-    os.system("grako -o ExprParser.py Expr.ebnf")
+GRAKOCMD = "grako -o tatl/ExprParser.py grammar/Expr.ebnf"
+if not os.path.exists('tatl/ExprParser.py'):
+    os.system(GRAKOCMD)
 
-import ExprParser
-
-import ExprSemantics, t_compile, IR, OpList, t_tmpl
+from tatl import ExprParser, ExprSemantics, Compiler, IR, OpList
 import json
 import os, sys, re
 import readline
@@ -26,14 +25,13 @@ def compile():
             os.execl(sys.executable, *([sys.executable]+sys.argv[:1]+[rule, out]))
         else:
             touch = mtime()
-    if mtime('Expr.ebnf') > mtime('ExprParser.py'):
-        os.system("grako -o ExprParser.py Expr.ebnf")
+    if mtime('grammar/Expr.ebnf') > mtime('tatl/ExprParser.py'):
+        os.system(GRAKOCMD)
         reload(ExprParser)
     reload(OpList)
     reload(IR)
     reload(ExprSemantics)
-    reload(t_tmpl)
-    reload(t_compile)
+    reload(Compiler)
     parser = ExprParser.ExprParser(
         parseinfo=parseinfo, 
         semantics=ExprSemantics.ExprSemantics()
@@ -128,7 +126,7 @@ def run(inp, debug=0):
     if rule[:2] == 'c.':
         if debug:
             pdb.set_trace()
-        code = t_compile.compile(inp, '<py>', out=out[-2:])
+        code = Compiler.compile(inp, '<py>', out=out[-2:])
         if out == 'runpy':
             d = {}
             exec code in d, d

@@ -40,14 +40,15 @@ class ExprSemantics(ExprParser.ExprParser):
         return IR.Part(fmt, fmt, lvar=ast.lvar, expr=ast.expr)
 
     def dottedPath(self, ast):
-        return IR.Expr([ast[0]], '.'.join(ast))
-
+        return IR.Path(ast)
+        
     def dotPath(self, ast):
         ast[0] = 'dot'
         return self.dottedPath(ast)
 
+    @debug
     def externalPath(self, ast):
-        return IR.Expr([], '_.require(%r).%s' % (ast.module, '.'.join(ast.path)))
+        return IR.Expr([], '_.load(%r, %r)' % (ast.module, ast.path))
 
     def path(self, ast):
         if ast.lookup:
@@ -60,6 +61,7 @@ class ExprSemantics(ExprParser.ExprParser):
             raise SyntaxError("%r is a reserved name")
         if ast[:1] == '_':
             raise SyntaxError("names beginning with underscores are reserved")
+        return ast
 
     def name(self, ast):
         if ast[:1] == '_':

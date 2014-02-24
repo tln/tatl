@@ -3,18 +3,6 @@ from cgi import escape as _escape
 import json, re
 from collections import namedtuple as _namedtuple
 
-def load(template):
-    import t_compile, os
-    html = template+'.html'
-    py = template+'.py'
-    if not os.path.exists(html):
-        return __import__(template)
-    code = t_compile.compile(open(html).read(), html)
-    with open(py, 'w') as f:
-        f.write(code)
-    return __import__(template)
-        
-        
 def range_incl(n, m):
     return range(n, m+1) if n < m else range(n, m-1, -1)
     
@@ -133,7 +121,7 @@ class _Context(object):
         return not self.qstack.pop(), c, e
 
     def load(self, name, path):
-        o = load(name)
+        o = __import__(name)
         o = getattr(o, path.pop()) # error if first name not found
         return self.get(o, path)
 
@@ -158,7 +146,6 @@ class _Context(object):
         # try/except?
         result = func(*args)
         return result or ''
-
 
     def items(self, obj):
         if obj is None: 
@@ -229,6 +216,8 @@ class _Forloop(object):
     sum = None
     pre = False
     post = False
+    prev = None
+    next = None
     
     counter = property(lambda self: self.counter0 + 1)
     first = property(lambda self: self.counter0 == 0)
@@ -256,6 +245,19 @@ class _Forloop(object):
         if self.postclass and self.post:
             l.append(self.postclass)
         return ' '.join(l)
+
+    def make_next(self):
+        next = self.__class__(
+            self.length,
+            self.cycle,
+            self.firstclass,
+            self.lastclass,
+            self.preclass,
+            self.postclass
+        )
+        self.next = next
+        next.prev = self
+        return next
 
     @property
     def current(self):
@@ -313,16 +315,24 @@ def forloop(obj, opts={}):
         iter = ((None, value) for value in obj)
     
     result.pre = bool(result.preclass)
+    lastresult = None
     for result.counter0, (result.key, result.value) in enumerate(iter):
         if result.pre:
             yield result
             result.pre = False
-        yield result
-    if result.postclass:
-        result.post = True
-        result.value = result.sum
-        yield result
-            
+        if lastresult:
+            yield lastresult
+        lastresult = result
+        result = result.make_next()
+    if lastresult:
+        lastresult.next = None
+        yield lastresult
+        if result.postclass:
+            result.prev = None
+            result.post = True
+            result.value = result.sum
+            yield result
+
 class _Star:
     def __init__(self, l, quote):
         self._l = l

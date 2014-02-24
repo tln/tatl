@@ -12,7 +12,7 @@ from __future__ import print_function, division, absolute_import, unicode_litera
 from grako.parsing import * # @UnusedWildImport
 from grako.exceptions import * # @UnusedWildImport
 
-__version__ = '14.051.21.35.26'
+__version__ = '14.055.00.01.53'
 
 class ExprParser(Parser):
     def __init__(self, whitespace=None, nameguard=True, **kwargs):

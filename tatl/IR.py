@@ -128,6 +128,19 @@ class StarArg(BasePart):
     py = js = '*star*'
 STAR_ARG = StarArg()
 
+class Path(BasePart):
+    def __init__(self, paths):
+        BasePart.__init__(self)
+        var = paths.pop(0)
+        self.lvars = [var]
+        if not paths:
+            self.py = self.js = var
+        elif len(paths) == 1:
+            path = paths[0]
+            self.js = self.py = '_.get1(%s, %r)' % (var, path)
+        else:
+            self.js = self.py = '_.get(%s, %r)' % (var, paths)
+            
 class Args(BasePart):
     def __init__(self, args):
         BasePart.__init__(self)

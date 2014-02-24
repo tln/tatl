@@ -59,7 +59,12 @@ class Compiler:
     def tag(self, tag):
         if tag.name == 'else':
             return self._else(tag)
+            
         ts = self._Tagstate(tag.name, tag.get('id'), self.fn and self.fn.block())
+        if tag.name in ('script', 'style'):
+            # just output it
+            ts.EmitQText(unicode(tag))
+            return
         self.tags.append(ts)
         self._process_attrs(tag.attrs, ts)
         self.firsttag = 0
@@ -110,7 +115,10 @@ class Compiler:
             if attr == 'if' and not v:
                     self._process_elide(ts, '')
             else:
-                    result = self.parser.parse(v, rule_name=attr+'Attr')
+                    try:
+                        result = self.parser.parse(v, rule_name=attr+'Attr')
+                    except:
+                        raise SyntaxError("Syntax error on <%s %s='%s'>" % (ts.name, attr, v))
                     getattr(self, '_process_'+attr)(ts, result)
     
         if ts.build_tag:
@@ -130,7 +138,7 @@ class Compiler:
                 if isinstance(val, list):
                     #multi-value attribute
                     val = ' '.join(val)
-                self.parse_text(val)
+                self.parse_text(ts, val)
                 ts.EmitQText('"')
             ts.EmitQText('>')
         else:
