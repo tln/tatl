@@ -1,0 +1,23 @@
+<html>
+    <title param>{.}</title>
+    <h1>{.}</h1>
+    
+    <p def="chide(number)" if>
+        Your emergency contact number is: {number}
+        <else>
+        Please set an emergency contact number!
+    </p>
+    
+    <form def="rating">
+        Rate our service!
+        {labels = {1: "(Needs work)", 5: "(Fantastic)"}; }
+        <do for="5...1">
+            <input type="radio" name="rating" value="{.}"> {.} {labels[.]}
+        </do>
+    </form>
+    
+    <footer>
+        <hr>
+        {.}
+    </footer>
+</html>

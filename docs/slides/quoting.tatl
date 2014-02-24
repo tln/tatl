@@ -1,0 +1,18 @@
+<html>
+    {{ }}
+    
+    {<tt>test</tt>}
+
+    <a onclick="alert('Hello {name}')">Hello!</a>
+    
+    <a href="http://www.example.com/{urlpart}?n={parameter}">Hello!</a>
+    
+    <style>
+    Nothing in here is {substituted}
+    </style>
+    
+    <script>
+    Nothing in here is {substituted}
+    </script>
+    
+</html>

@@ -1,0 +1,615 @@
+<html>
+<head>
+<script src="http://ajax.googleapis.com/ajax/libs/jquery/1.10.2/jquery.min.js" type="text/javascript"></script>
+<script>
+    $(function () {
+        function changetab() {
+            var target = document.location.hash
+            $(".selected").removeClass("selected");
+            $('[data-href="'+target+'"], '+target).addClass("selected");
+        }
+        if (document.location.hash) {
+            changetab()
+        }
+        window.onhashchange = changetab
+    });
+    </script>
+<link href="docs.css" type="text/css" charset="utf-8" rel="stylesheet"></link>
+<style>
+    article {display: none;}
+    article.selected {display:block;}
+    </style>
+</head>
+<body>
+<article class="selected" id="1">
+<nav>
+
+<a style="float: right;" href="#2">next →</a>
+</nav>
+        <html><body><h1>TATL</h1>
+<h2>Tag / Attribute Template Language</h2>
+<h2>A templating system thats good for outputting HTML, for Javascript and Python.</h2>
+<p></p></body></html>
+    </article><article class="" id="2">
+<nav>
+<a style="float: left;" href="#1">← previous</a>
+<a style="float: right;" href="#3">next →</a>
+</nav>
+        <html><body><p>
+Pretty basic! <code>{}</code> are *substitions*. <code>for=</code> and <code>if=</code> are special *attributes*. There are a few more
+special attributes, which we'll see in the advanced section. <a href="#3">On to next &gt;&gt;</a>
+
+<pre><code>&lt;<span class="tag ">html</span>&gt;</code>
+    <code>&lt;<span class="tag ">h1</span>&gt;</code>Hello <var>{name}</var><code>&lt;<span class="tag ">h1</span>&gt;</code>
+    <code>&lt;<span class="tag ">p</span> <span class="attr special"><span class="attrname">if</span>=<span class="attrval">"number"</span></span>&gt;</code>Your emergency contact number is: <var>{number}</var><code>&lt;/<span class="tag ">p</span>&gt;</code>
+    <code>&lt;<span class="tag ">li</span>&gt;</code>
+        <code>&lt;<span class="tag ">ul</span> <span class="attr special"><span class="attrname">for</span>=<span class="attrval">"notice in notices"</span></span>&gt;</code><var>{notice}</var><code>&lt;<span class="tag ">ul</span>&gt;</code>
+    <code>&lt;/<span class="tag ">li</span>&gt;</code>
+<code>&lt;/<span class="tag ">html</span>&gt;</code></pre></p></body></html>
+    </article><article class="" id="3">
+<nav>
+<a style="float: left;" href="#2">← previous</a>
+<a style="float: right;" href="#4">next →</a>
+</nav>
+        <html><body><p>
+</p><p>Ok, now lets look at the special *tags*. Just two: <code>&lt;do&gt;</code> acts like any other tag but doesn't show up in the output.
+
+</p><p>We're using it to loop, where the looped contents don't all go in the same tag (it happens).
+
+</p><p><code>&lt;else&gt;</code> works with <code>if=</code>. <code>&lt;else if=""&gt;</code> does what you'd expect.
+    
+</p><p>Also, notice we're looping over a list of numbers now, and we're just writing that list in here directly. 
+    
+</p><p><a href="#4">next &gt;&gt;</a>
+
+<pre><code>&lt;<span class="tag ">html</span>&gt;</code>
+    <code>&lt;<span class="tag ">h1</span>&gt;</code>Hello <var>{name}</var><code>&lt;<span class="tag ">h1</span>&gt;</code>
+    <code>&lt;<span class="tag ">p</span> <span class="attr special"><span class="attrname">if</span>=<span class="attrval">"number"</span></span>&gt;</code>
+        Your emergency contact number is: <var>{number}</var>
+        <code>&lt;<span class="tag special">else</span>&gt;</code>
+        Please set an emergency contact number!
+    <code>&lt;/<span class="tag ">p</span>&gt;</code>
+    <code>&lt;<span class="tag ">li</span>&gt;</code>
+        <code>&lt;<span class="tag ">ul</span> <span class="attr special"><span class="attrname">for</span>=<span class="attrval">"notice in notices"</span></span>&gt;</code><var>{notice}</var><code>&lt;<span class="tag ">ul</span>&gt;</code>
+    <code>&lt;/<span class="tag ">li</span>&gt;</code>
+    <code>&lt;<span class="tag ">form</span>&gt;</code>
+        Rate our service!
+        <code>&lt;<span class="tag special">do</span> <span class="attr special"><span class="attrname">for</span>=<span class="attrval">"rating in [5, 4, 3, 2, 1]"</span></span>&gt;</code>
+            <code>&lt;<span class="tag ">input</span> <span class="attr"><span class="attrname">type</span>=<span class="attrval">"radio"</span></span> <span class="attr"><span class="attrname">name</span>=<span class="attrval">"rating"</span></span> <span class="attr"><span class="attrname">value</span>=<span class="attrval">"<var>{rating}</var>"</span></span>&gt;</code> <var>{rating}</var>
+        <code>&lt;/<span class="tag special">do</span>&gt;</code>
+    <code>&lt;/<span class="tag ">form</span>&gt;</code>
+<code>&lt;/<span class="tag ">html</span>&gt;</code>
+</pre></p></body></html>
+    </article><article class="" id="4">
+<nav>
+<a style="float: left;" href="#3">← previous</a>
+<a style="float: right;" href="#5">next →</a>
+</nav>
+        <html><body><p>
+</p><p>We can use shortcuts here. 
+
+</p><p>Instead of <code>if="number"</code>, we can just shorten to "<code>if</code>". This basically checks the substitution values. (See elide for all the details)
+
+</p><p>We can also leave the loop variable name off the <code>for=</code> attribute. It will default to <code>.</code> (see the dot).
+
+</p><p>Finally, there's syntax to make a list of numbers (more details). 
+
+<a href="#5">next &gt;&gt;</a>
+
+<pre><code>&lt;<span class="tag ">html</span>&gt;</code>
+    <code>&lt;<span class="tag ">h1</span>&gt;</code>Hello <var>{name}</var><code>&lt;<span class="tag ">h1</span>&gt;</code>
+    <code>&lt;<span class="tag ">p</span> <span class="attr special"><span class="attrname">if</span></span>&gt;</code>
+        Your emergency contact number is: <var>{number}</var>
+        <code>&lt;<span class="tag special">else</span>&gt;</code>
+        Please set an emergency contact number!
+    <code>&lt;/<span class="tag ">p</span>&gt;</code>
+    <code>&lt;<span class="tag ">li</span>&gt;</code>
+        <code>&lt;<span class="tag ">ul</span> <span class="attr special"><span class="attrname">for</span>=<span class="attrval">"notices"</span></span>&gt;</code><var>{.}</var><code>&lt;<span class="tag ">ul</span>&gt;</code>
+    <code>&lt;/<span class="tag ">li</span>&gt;</code>
+    <code>&lt;<span class="tag ">form</span>&gt;</code>
+        Rate our service!
+        <code>&lt;<span class="tag special">do</span> <span class="attr special"><span class="attrname">for</span>=<span class="attrval">"5...1"</span></span>&gt;</code>
+            <code>&lt;<span class="tag ">input</span> <span class="attr"><span class="attrname">type</span>=<span class="attrval">"radio"</span></span> <span class="attr"><span class="attrname">name</span>=<span class="attrval">"rating"</span></span> <span class="attr"><span class="attrname">value</span>=<span class="attrval">"<var>{.}</var>"</span></span>&gt;</code> <var>{.}</var>
+        <code>&lt;/<span class="tag special">do</span>&gt;</code>
+    <code>&lt;/<span class="tag ">form</span>&gt;</code>
+<code>&lt;/<span class="tag ">html</span>&gt;</code>
+</pre></p></body></html>
+    </article><article class="" id="5">
+<nav>
+<a style="float: left;" href="#4">← previous</a>
+<a style="float: right;" href="#6">next →</a>
+</nav>
+        <html><body><p>Lets see what happens if the data is more structured. The notices now has a level, text and a link for more details. We just change the substitution to use <code>variable.path</code>.
+
+</p><p>We havent shown what kind of data structure the notices is passed as but dotted paths work with lists, dicts, and objects, and if the key isn't found, its just empty (more on empty).
+
+</p><p>Notice how the empty if came in handy again!
+
+<pre><code>&lt;<span class="tag ">html</span>&gt;</code>
+    <code>&lt;<span class="tag ">h1</span>&gt;</code>Hello <var>{name}</var><code>&lt;<span class="tag ">h1</span>&gt;</code>
+    <code>&lt;<span class="tag ">p</span> <span class="attr special"><span class="attrname">if</span></span>&gt;</code>
+        Your emergency contact number is: <var>{number}</var>
+        <code>&lt;<span class="tag special">else</span>&gt;</code>
+        Please set an emergency contact number!
+    <code>&lt;/<span class="tag ">p</span>&gt;</code>
+    <code>&lt;<span class="tag ">li</span>&gt;</code>
+        <code>&lt;<span class="tag ">ul</span> <span class="attr"><span class="attrname">class</span>=<span class="attrval">"<var>{.level}</var>"</span></span> <span class="attr special"><span class="attrname">for</span>=<span class="attrval">"notices"</span></span>&gt;</code><var>{.text}</var>
+            <code>&lt;<span class="tag ">div</span> <span class="attr"><span class="attrname">class</span>=<span class="attrval">"more-info"</span></span> <span class="attr special"><span class="attrname">if</span></span>&gt;</code>
+                <code>&lt;<span class="tag ">a</span> <span class="attr"><span class="attrname">href</span>=<span class="attrval">"<var>{.url}</var>"</span></span>&gt;</code>Additional information<code>&lt;/<span class="tag ">a</span>&gt;</code>
+            <code>&lt;/<span class="tag ">div</span>&gt;</code>
+        <code>&lt;<span class="tag ">ul</span>&gt;</code>
+    <code>&lt;/<span class="tag ">li</span>&gt;</code>
+    <code>&lt;<span class="tag ">form</span>&gt;</code>
+        Rate our service!
+        <code>&lt;<span class="tag special">do</span> <span class="attr special"><span class="attrname">for</span>=<span class="attrval">"1...5"</span></span>&gt;</code>
+            <code>&lt;<span class="tag ">input</span> <span class="attr"><span class="attrname">type</span>=<span class="attrval">"radio"</span></span> <span class="attr"><span class="attrname">name</span>=<span class="attrval">"rating"</span></span> <span class="attr"><span class="attrname">value</span>=<span class="attrval">"<var>{.}</var>"</span></span>&gt;</code> <var>{.}</var>
+        <code>&lt;/<span class="tag special">do</span>&gt;</code>
+    <code>&lt;/<span class="tag ">form</span>&gt;</code>
+<code>&lt;/<span class="tag ">html</span>&gt;</code>
+</pre></p></body></html>
+    </article><article class="" id="6">
+<nav>
+<a style="float: left;" href="#5">← previous</a>
+<a style="float: right;" href="#7">next →</a>
+</nav>
+        <html><body><p>Thats it! Dive in further:
+
+</p><ul>
+<li> more data, more loops, set
+
+    </li><li> calls, defs, modules
+
+    </li><li> params, inheritence
+
+    </li><li> magic placeholders
+
+    </li><li> Gotchas
+
+    </li><li> Tag combos
+
+    </li><li> Quoting and context within your HTML doc
+
+    </li><li> Comments and Front matter
+
+    </li><li> Tag()
+</li></ul></body></html>
+    </article><article class="" id="7">
+<nav>
+<a style="float: left;" href="#6">← previous</a>
+<a style="float: right;" href="#8">next →</a>
+</nav>
+        <html><body><h1>More data, more loops.</h1>
+<p>Ok, we need labels for the radio buttons. Lets add set a local variable. Then we look up the number.
+If its not found, then nothing is inserted -- expression paths don't fail on missing values.
+
+</p><p>Lets add another tag: <code>set=""</code>. This will take the tag, after execution of the <code>for</code>, <code>if</code> etc, and
+save it to a local variable. Theres also a filter -- <code>set=""</code>
+</p><p>For the sake of a scenario, lets say we've decided to nag people about 
+their number in the footer, too; we're referencing our variable like it was passed in.
+
+<pre><code>&lt;<span class="tag ">html</span>&gt;</code>
+    <code>&lt;<span class="tag ">h1</span>&gt;</code>Hello <var>{name}</var><code>&lt;<span class="tag ">h1</span>&gt;</code>
+    <code>&lt;<span class="tag ">p</span> <span class="attr special"><span class="attrname">set</span>=<span class="attrval">"chide|tag"</span></span> <span class="attr special"><span class="attrname">if</span></span>&gt;</code>
+        Your emergency contact number is: <var>{number}</var>
+        <code>&lt;<span class="tag special">else</span>&gt;</code>
+        Please set an emergency contact number!
+    <code>&lt;/<span class="tag ">p</span>&gt;</code>
+    
+    <code>&lt;<span class="tag ">li</span>&gt;</code>
+        <code>&lt;<span class="tag ">ul</span> <span class="attr"><span class="attrname">class</span>=<span class="attrval">"<var>{.level}</var>"</span></span> <span class="attr special"><span class="attrname">for</span>=<span class="attrval">"notices"</span></span>&gt;</code><var>{.text}</var>
+            <code>&lt;<span class="tag ">div</span> <span class="attr"><span class="attrname">class</span>=<span class="attrval">"more-info"</span></span> <span class="attr special"><span class="attrname">if</span></span>&gt;</code>
+                <code>&lt;<span class="tag ">a</span> <span class="attr"><span class="attrname">href</span>=<span class="attrval">"<var>{.url}</var>"</span></span>&gt;</code>Additional information<code>&lt;/<span class="tag ">a</span>&gt;</code>
+            <code>&lt;/<span class="tag ">div</span>&gt;</code>
+        <code>&lt;<span class="tag ">ul</span>&gt;</code>
+    <code>&lt;/<span class="tag ">li</span>&gt;</code>
+    
+    <var>{labels = {1: "(Needs work)", 5: "(Fantastic)"}; }</var>
+    <code>&lt;<span class="tag ">form</span>&gt;</code>
+        Rate our service!
+        <code>&lt;<span class="tag special">do</span> <span class="attr special"><span class="attrname">for</span>=<span class="attrval">"5...1"</span></span>&gt;</code>
+            <code>&lt;<span class="tag ">input</span> <span class="attr"><span class="attrname">type</span>=<span class="attrval">"radio"</span></span> <span class="attr"><span class="attrname">name</span>=<span class="attrval">"rating"</span></span> <span class="attr"><span class="attrname">value</span>=<span class="attrval">"<var>{.}</var>"</span></span>&gt;</code> <var>{.}</var> <var>{labels[.]}</var>
+        <code>&lt;/<span class="tag special">do</span>&gt;</code>
+    <code>&lt;/<span class="tag ">form</span>&gt;</code>
+    
+    <code>&lt;<span class="tag ">hr</span>&gt;</code>
+    <var>{chide}</var>
+    
+<code>&lt;/<span class="tag ">html</span>&gt;</code></pre></p></body></html>
+    </article><article class="" id="8">
+<nav>
+<a style="float: left;" href="#7">← previous</a>
+<a style="float: right;" href="#9">next →</a>
+</nav>
+        <html><body><h1>Calls, defs</h1>
+<p>This is getting complicated. Lets move out some of the pieces using macros.
+The second file is called common.html so we can access the macros within using common::name.
+
+</p><p>The <code>def=</code> tag defines a macro. Note that we moved the <code>{labels = {..}}</code> inside the macro.
+When it was outside the macro, it was a local var of the implicit html macro. Macros can 
+only access parameters that are passed in.
+
+</p><p>We call a local function via {function()} and function from another template via {template::function()}
+
+<pre><code>&lt;<span class="tag ">html</span>&gt;</code>
+    <code>&lt;<span class="tag ">h1</span>&gt;</code>Hello <var>{name}</var><code>&lt;<span class="tag ">h1</span>&gt;</code>
+    <var>{chide(number)}</var> 
+    <code>&lt;<span class="tag ">li</span>&gt;</code>
+        <code>&lt;<span class="tag ">ul</span> <span class="attr"><span class="attrname">class</span>=<span class="attrval">"<var>{.level}</var>"</span></span> <span class="attr special"><span class="attrname">for</span>=<span class="attrval">"notices"</span></span>&gt;</code><var>{.text}</var>
+            <code>&lt;<span class="tag ">div</span> <span class="attr"><span class="attrname">class</span>=<span class="attrval">"more-info"</span></span> <span class="attr special"><span class="attrname">if</span></span>&gt;</code>
+                <code>&lt;<span class="tag ">a</span> <span class="attr"><span class="attrname">href</span>=<span class="attrval">"<var>{.url}</var>"</span></span>&gt;</code>Additional information<code>&lt;/<span class="tag ">a</span>&gt;</code>
+            <code>&lt;/<span class="tag ">div</span>&gt;</code>
+        <code>&lt;<span class="tag ">ul</span>&gt;</code>
+    <code>&lt;/<span class="tag ">li</span>&gt;</code>
+    <var>{rating()}</var>  
+    <code>&lt;<span class="tag ">hr</span>&gt;</code>
+    <var>{chide(number)}</var>
+<code>&lt;/<span class="tag ">html</span>&gt;</code>
+</pre>
+
+<pre><code>&lt;<span class="tag ">html</span>&gt;</code>
+    <code>&lt;<span class="tag ">h1</span>&gt;</code><var>{title}</var><code>&lt;/<span class="tag ">h1</span>&gt;</code>
+
+    <code>&lt;<span class="tag ">p</span> <span class="attr special"><span class="attrname">def</span>=<span class="attrval">"chide(number)"</span></span> <span class="attr special"><span class="attrname">if</span></span>&gt;</code>
+        Your emergency contact number is: <var>{number}</var>
+        <code>&lt;<span class="tag special">else</span>&gt;</code>
+        Please set an emergency contact number!
+    <code>&lt;/<span class="tag ">p</span>&gt;</code>
+    
+    <code>&lt;<span class="tag ">form</span> <span class="attr special"><span class="attrname">def</span>=<span class="attrval">"rating"</span></span>&gt;</code>
+        Rate our service!
+        <var>{labels = {1: "(Needs work)", 5: "(Fantastic)"}; }</var>
+        <code>&lt;<span class="tag special">do</span> <span class="attr special"><span class="attrname">for</span>=<span class="attrval">"5...1"</span></span>&gt;</code>
+            <code>&lt;<span class="tag ">input</span> <span class="attr"><span class="attrname">type</span>=<span class="attrval">"radio"</span></span> <span class="attr"><span class="attrname">name</span>=<span class="attrval">"rating"</span></span> <span class="attr"><span class="attrname">value</span>=<span class="attrval">"<var>{.}</var>"</span></span>&gt;</code> <var>{.}</var> <var>{labels[.]}</var>
+        <code>&lt;/<span class="tag special">do</span>&gt;</code>
+    <code>&lt;/<span class="tag ">form</span>&gt;</code>
+    
+<code>&lt;/<span class="tag ">html</span>&gt;</code></pre></p></body></html>
+    </article><article class="" id="9">
+<nav>
+<a style="float: left;" href="#8">← previous</a>
+<a style="float: right;" href="#10">next →</a>
+</nav>
+        <html><body><p>The <code>use=</code> attribute + <code>param=</code> = inheritence.
+
+</p><p>We mentioned the top level tag was implicitly a macro. Specifically, if not other added, a <code>def="html(*)"</code> is assumed.
+The <code>*</code> means, add any parameters defined to the arguments.
+
+</p><p>We could just call the <code>template::html</code> macro at the end, but a better way is the use="tag".
+That will find the local variables that correspond to the parameters of the template, 
+and pass them.
+
+</p><p>Notice that our parameter isn't constrained to being used in a single place. Our base template is using it for the 
+title of the page, as well. In general you can use variables after they're defined, eg you can use variables from a 
+for loop.
+
+<pre><code>&lt;<span class="tag ">html</span> <span class="attr special"><span class="attrname">use</span>=<span class="attrval">"common::html"</span></span>&gt;</code>
+    <code>&lt;<span class="tag ">title</span> <span class="attr special"><span class="attrname">set</span>=<span class="attrval">"footer|contents"</span></span>&gt;</code>Hello <var>{name}</var><code>&lt;/<span class="tag ">title</span>&gt;</code>
+    <var>{footer = chide(number); footer}</var>
+    
+    <code>&lt;<span class="tag ">li</span>&gt;</code>
+        <code>&lt;<span class="tag ">ul</span> <span class="attr"><span class="attrname">class</span>=<span class="attrval">"<var>{.level}</var>"</span></span> <span class="attr special"><span class="attrname">for</span>=<span class="attrval">"notices"</span></span>&gt;</code><var>{.text}</var>
+            <code>&lt;<span class="tag ">div</span> <span class="attr"><span class="attrname">class</span>=<span class="attrval">"more-info"</span></span> <span class="attr special"><span class="attrname">if</span></span>&gt;</code>
+                <code>&lt;<span class="tag ">a</span> <span class="attr"><span class="attrname">href</span>=<span class="attrval">"<var>{.url}</var>"</span></span>&gt;</code>Additional information<code>&lt;/<span class="tag ">a</span>&gt;</code>
+            <code>&lt;/<span class="tag ">div</span>&gt;</code>
+        <code>&lt;<span class="tag ">ul</span>&gt;</code>
+    <code>&lt;/<span class="tag ">li</span>&gt;</code>
+    
+    <var>{rating()}</var>  
+    
+    <code>&lt;<span class="tag ">hr</span>&gt;</code>
+    <code>&lt;<span class="tag ">footer</span> <span class="attr special"><span class="attrname">set</span>=<span class="attrval">"footer|contents"</span></span>&gt;</code><var>{chide(number)}</var><code>&lt;/<span class="tag ">footer</span>&gt;</code>
+<code>&lt;/<span class="tag ">html</span>&gt;</code>
+</pre>
+
+<pre><code>&lt;<span class="tag ">html</span> <span class="attr special"><span class="attrname">def</span>=<span class="attrval">"html(*)"</span></span>&gt;</code>
+    <code>&lt;<span class="tag ">title</span> <span class="attr special"><span class="attrname">param</span>=<span class="attrval">"title"</span></span>&gt;</code><var>{title}</var><code>&lt;/<span class="tag ">title</span>&gt;</code>
+    <code>&lt;<span class="tag ">h1</span>&gt;</code><var>{title}</var><code>&lt;/<span class="tag ">h1</span>&gt;</code>
+    
+    <code>&lt;<span class="tag ">p</span> <span class="attr special"><span class="attrname">def</span>=<span class="attrval">"chide(number)"</span></span> <span class="attr special"><span class="attrname">if</span></span>&gt;</code>
+        Your emergency contact number is: <var>{number}</var>
+        <code>&lt;<span class="tag special">else</span>&gt;</code>
+        Please set an emergency contact number!
+    <code>&lt;/<span class="tag ">p</span>&gt;</code>
+    
+    <code>&lt;<span class="tag ">form</span> <span class="attr special"><span class="attrname">def</span>=<span class="attrval">"rating"</span></span>&gt;</code>
+        Rate our service!
+        <var>{labels = {1: "(Needs work)", 5: "(Fantastic)"}; }</var>
+        <code>&lt;<span class="tag special">do</span> <span class="attr special"><span class="attrname">for</span>=<span class="attrval">"5...1"</span></span>&gt;</code>
+            <code>&lt;<span class="tag ">input</span> <span class="attr"><span class="attrname">type</span>=<span class="attrval">"radio"</span></span> <span class="attr"><span class="attrname">name</span>=<span class="attrval">"rating"</span></span> <span class="attr"><span class="attrname">value</span>=<span class="attrval">"<var>{.}</var>"</span></span>&gt;</code> <var>{.}</var> <var>{labels[.]}</var>
+        <code>&lt;/<span class="tag special">do</span>&gt;</code>
+    <code>&lt;/<span class="tag ">form</span>&gt;</code>
+    
+    <code>&lt;<span class="tag ">footer</span> <span class="attr special"><span class="attrname">param</span>=<span class="attrval">"footer"</span></span>&gt;</code>
+        <code>&lt;<span class="tag ">hr</span>&gt;</code>
+        <var>{footer}</var>
+    <code>&lt;/<span class="tag ">footer</span>&gt;</code>
+<code>&lt;/<span class="tag ">html</span>&gt;</code>
+</pre></p></body></html>
+    </article><article class="" id="10">
+<nav>
+<a style="float: left;" href="#9">← previous</a>
+<a style="float: right;" href="#11">next →</a>
+</nav>
+        <html><body><h1>More shortcuts! </h1>
+<p>param and set will default to their tag names.
+
+</p><p>param will set '.' to be the value of the parameter.
+
+<pre><code>&lt;<span class="tag ">html</span> <span class="attr special"><span class="attrname">use</span>=<span class="attrval">"common::html"</span></span>&gt;</code>
+    <code>&lt;<span class="tag ">title</span> <span class="attr special"><span class="attrname">set</span></span>&gt;</code>Hello <var>{name}</var><code>&lt;/<span class="tag ">title</span>&gt;</code>
+    <var>{chide(number)}</var>
+    
+    <code>&lt;<span class="tag ">li</span>&gt;</code>
+        <code>&lt;<span class="tag ">ul</span> <span class="attr"><span class="attrname">class</span>=<span class="attrval">"<var>{.level}</var>"</span></span> <span class="attr special"><span class="attrname">for</span>=<span class="attrval">"notices"</span></span>&gt;</code><var>{.text}</var>
+            <code>&lt;<span class="tag ">div</span> <span class="attr"><span class="attrname">class</span>=<span class="attrval">"more-info"</span></span> <span class="attr special"><span class="attrname">if</span></span>&gt;</code>
+                <code>&lt;<span class="tag ">a</span> <span class="attr"><span class="attrname">href</span>=<span class="attrval">"<var>{.url}</var>"</span></span>&gt;</code>Additional information<code>&lt;/<span class="tag ">a</span>&gt;</code>
+            <code>&lt;/<span class="tag ">div</span>&gt;</code>
+        <code>&lt;<span class="tag ">ul</span>&gt;</code>
+    <code>&lt;/<span class="tag ">li</span>&gt;</code>
+    
+    <var>{rating()}</var>  
+    <code>&lt;<span class="tag ">footer</span> <span class="attr special"><span class="attrname">set</span></span>&gt;</code><var>{chide(number)}</var><code>&lt;/<span class="tag ">footer</span>&gt;</code>
+<code>&lt;/<span class="tag ">html</span>&gt;</code>
+</pre>
+
+<pre><code>&lt;<span class="tag ">html</span>&gt;</code>
+    <code>&lt;<span class="tag ">title</span> <span class="attr special"><span class="attrname">param</span></span>&gt;</code><var>{.}</var><code>&lt;/<span class="tag ">title</span>&gt;</code>
+    <code>&lt;<span class="tag ">h1</span>&gt;</code><var>{.}</var><code>&lt;/<span class="tag ">h1</span>&gt;</code>
+    
+    <code>&lt;<span class="tag ">p</span> <span class="attr special"><span class="attrname">def</span>=<span class="attrval">"chide(number)"</span></span> <span class="attr special"><span class="attrname">if</span></span>&gt;</code>
+        Your emergency contact number is: <var>{number}</var>
+        <code>&lt;<span class="tag special">else</span>&gt;</code>
+        Please set an emergency contact number!
+    <code>&lt;/<span class="tag ">p</span>&gt;</code>
+    
+    <code>&lt;<span class="tag ">form</span> <span class="attr special"><span class="attrname">def</span>=<span class="attrval">"rating"</span></span>&gt;</code>
+        Rate our service!
+        <var>{labels = {1: "(Needs work)", 5: "(Fantastic)"}; }</var>
+        <code>&lt;<span class="tag special">do</span> <span class="attr special"><span class="attrname">for</span>=<span class="attrval">"5...1"</span></span>&gt;</code>
+            <code>&lt;<span class="tag ">input</span> <span class="attr"><span class="attrname">type</span>=<span class="attrval">"radio"</span></span> <span class="attr"><span class="attrname">name</span>=<span class="attrval">"rating"</span></span> <span class="attr"><span class="attrname">value</span>=<span class="attrval">"<var>{.}</var>"</span></span>&gt;</code> <var>{.}</var> <var>{labels[.]}</var>
+        <code>&lt;/<span class="tag special">do</span>&gt;</code>
+    <code>&lt;/<span class="tag ">form</span>&gt;</code>
+    
+    <code>&lt;<span class="tag ">footer</span>&gt;</code>
+        <code>&lt;<span class="tag ">hr</span>&gt;</code>
+        <var>{.}</var>
+    <code>&lt;/<span class="tag ">footer</span>&gt;</code>
+<code>&lt;/<span class="tag ">html</span>&gt;</code>
+</pre></p></body></html>
+    </article><article class="" id="11">
+<nav>
+<a style="float: left;" href="#10">← previous</a>
+<a style="float: right;" href="#12">next →</a>
+</nav>
+        <html><body><p>
+</p><p>From now on we'll ignore common. Lets introduce placeholders. We want to put some content at the top to the page (the chide) that we calculate later. Of course, this could be solved in other ways! But it's a good introduction point.</p>
+<ul>
+<li> Placeholders make a function. 
+</li><li> When called, they put the parameter back where the placeholder was created.
+</li><li> Star placeholders return their argument so they can be inlined
+</li><li> BTW -- there's another way to avoid showing an expression result
+</li></ul>
+<p>Lets introduce <a href="#12">this</a> next.
+
+<pre><code>&lt;<span class="tag ">html</span> <span class="attr special"><span class="attrname">use</span>=<span class="attrval">"common::html"</span></span>&gt;</code>
+    <code>&lt;<span class="tag ">title</span> <span class="attr special"><span class="attrname">set</span></span>&gt;</code>Hello <var>{name}</var><code>&lt;/<span class="tag ">title</span>&gt;</code>
+    <var>{*:lede}</var>
+
+    <code>&lt;<span class="tag ">li</span>&gt;</code>
+        <code>&lt;<span class="tag ">ul</span> <span class="attr"><span class="attrname">class</span>=<span class="attrval">"<var>{.level}</var>"</span></span> <span class="attr special"><span class="attrname">for</span>=<span class="attrval">"notices"</span></span>&gt;</code><var>{.text}</var>
+            <code>&lt;<span class="tag ">div</span> <span class="attr"><span class="attrname">class</span>=<span class="attrval">"more-info"</span></span> <span class="attr special"><span class="attrname">if</span></span>&gt;</code>
+                <code>&lt;<span class="tag ">a</span> <span class="attr"><span class="attrname">href</span>=<span class="attrval">"<var>{.url}</var>"</span></span>&gt;</code>Additional information<code>&lt;/<span class="tag ">a</span>&gt;</code>
+            <code>&lt;/<span class="tag ">div</span>&gt;</code>
+        <code>&lt;<span class="tag ">ul</span>&gt;</code>
+    <code>&lt;/<span class="tag ">li</span>&gt;</code>
+    
+    <var>{rating()}</var>  
+    <code>&lt;<span class="tag ">footer</span> <span class="attr special"><span class="attrname">set</span></span>&gt;</code><var>{chide(number); result}</var><code>&lt;/<span class="tag ">footer</span>&gt;</code>
+    <code>&lt;<span class="tag special">do</span> <span class="attr special"><span class="attrname">set</span>=<span class="attrval">"dontshow"</span></span>&gt;</code><var>{lede(result)}</var><code>&lt;/<span class="tag special">do</span>&gt;</code>
+
+    <span class="comment">&lt;!-- inlined --&gt;</span>
+    <code>&lt;<span class="tag ">footer</span> <span class="attr special"><span class="attrname">set</span></span>&gt;</code><var>{lede(chide(number))}</var><code>&lt;/<span class="tag ">footer</span>&gt;</code>
+
+    <span class="comment">&lt;!-- filter --&gt;</span>
+    <code>&lt;<span class="tag ">footer</span> <span class="attr special"><span class="attrname">set</span></span>&gt;</code><var>{chide(number)|lede}</var><code>&lt;/<span class="tag ">footer</span>&gt;</code>
+
+    <span class="comment">&lt;!-- hide expression result --&gt;</span>
+    <code>&lt;<span class="tag ">footer</span> <span class="attr special"><span class="attrname">set</span></span>&gt;</code><var>{chide(number)}</var><code>&lt;/<span class="tag ">footer</span>&gt;</code>
+    <var>{lede(footer); ""}</var>
+
+<code>&lt;/<span class="tag ">html</span>&gt;</code></pre></p></body></html>
+    </article><article class="" id="12">
+<nav>
+<a style="float: left;" href="#11">← previous</a>
+<a style="float: right;" href="#13">next →</a>
+</nav>
+        <html><body><p>Ok. Increment placeholders work somewhat similarly... you can also access the 
+count in further logic.
+
+</p><p>Also: regexes! and ternary operator! The syntax allows regexes, and other comparisons 
+in the <code>if=""</code> and with the ternary operator. (and thats all -- this isn't as 
+general as other languages).
+
+</p><p>We're also calling the <code>lede()</code> via <code>use=""</code>. <code>use=""</code> will set <code>.</code> to be the result of the whole tag. Thats what placeholders have as their parameter name by default.
+
+<pre><code>&lt;<span class="tag ">html</span> <span class="attr special"><span class="attrname">use</span>=<span class="attrval">"common::html"</span></span>&gt;</code>
+    <code>&lt;<span class="tag ">title</span> <span class="attr special"><span class="attrname">set</span></span>&gt;</code>Hello <var>{name}</var><code>&lt;/<span class="tag ">title</span>&gt;</code>
+    <var>{*:lede}</var>
+
+    <code>&lt;<span class="tag ">li</span>&gt;</code>
+        <var>{++:num}</var> notices total / <var>{++:numwarn}</var> warning notices
+        <code>&lt;<span class="tag ">ul</span> <span class="attr"><span class="attrname">class</span>=<span class="attrval">"<var>{.level}</var>"</span></span> <span class="attr special"><span class="attrname">for</span>=<span class="attrval">"notices"</span></span>&gt;</code><var>{.text}</var>
+            <var>{num(); numwarn(.level ~ /warning|error/ ? 1 : 0)}</var>
+            <code>&lt;<span class="tag ">div</span> <span class="attr"><span class="attrname">class</span>=<span class="attrval">"more-info"</span></span> <span class="attr special"><span class="attrname">if</span></span>&gt;</code>
+                <code>&lt;<span class="tag ">a</span> <span class="attr"><span class="attrname">href</span>=<span class="attrval">"<var>{.url}</var>"</span></span>&gt;</code>Additional information<code>&lt;/<span class="tag ">a</span>&gt;</code>
+            <code>&lt;/<span class="tag ">div</span>&gt;</code>
+        <code>&lt;<span class="tag ">ul</span>&gt;</code>
+        <code>&lt;<span class="tag ">p</span> <span class="attr special"><span class="attrname">use</span>=<span class="attrval">"lede"</span></span> <span class="attr special"><span class="attrname">if</span></span> <span class="attr"><span class="attrname">numwarn</span></span>&gt;</code> 3">Multiple notices need your attention!<code>&lt;/<span class="tag ">p</span>&gt;</code>
+    <code>&lt;/<span class="tag ">li</span>&gt;</code>
+    
+    <var>{rating()}</var>  
+    <code>&lt;<span class="tag ">footer</span> <span class="attr special"><span class="attrname">set</span></span>&gt;</code><var>{lede(chide(number))}</var><code>&lt;/<span class="tag ">footer</span>&gt;</code>
+<code>&lt;/<span class="tag ">html</span>&gt;</code>
+</pre>
+</p></body></html>
+    </article><article class="" id="13">
+<nav>
+<a style="float: left;" href="#12">← previous</a>
+<a style="float: right;" href="#14">next →</a>
+</nav>
+        <html><body><p>It's not all unicorns and rainbows! There are some gotchas we should bring up, especially 
+about placeholders.
+
+</p><p>Placeholders don't "hold open" your set and will leak outside your if. Compiler should warn about this.
+
+</p><p>Lots of tags together can get pretty confusing. 
+
+</p><p>The shortcuts can get out of hand... we're showing a few more, for and def.
+
+</p><p>Lets look at how that expands!
+
+<pre><code>&lt;<span class="tag ">html</span> <span class="attr special"><span class="attrname">use</span>=<span class="attrval">"common::html"</span></span>&gt;</code>
+    <code>&lt;<span class="tag ">title</span> <span class="attr special"><span class="attrname">set</span></span>&gt;</code>Hello <var>{name}</var><code>&lt;/<span class="tag ">title</span>&gt;</code>
+    <var>{*:lede}</var>
+
+    <code>&lt;<span class="tag ">li</span>&gt;</code>
+        <span class="comment">&lt;!-- not working --&gt;</span>
+        <var>{++:num}</var> notices total / <code>&lt;<span class="tag special">do</span> <span class="attr special"><span class="attrname">if</span>=<span class="attrval">"numwarn"</span></span>&gt;</code><var>{++:numwarn}</var> warning notices<code>&lt;/<span class="tag special">do</span>&gt;</code>
+
+        <span class="comment">&lt;!-- not working --&gt;</span>
+        <var>{++:num}</var> notices total / <code>&lt;<span class="tag special">do</span> <span class="attr special"><span class="attrname">set</span>=<span class="attrval">"numwarn"</span></span>&gt;</code><var>{++:numwarn}</var> warning notices<code>&lt;/<span class="tag special">do</span>&gt;</code>
+        <code>&lt;<span class="tag ">ul</span> <span class="attr"><span class="attrname">class</span>=<span class="attrval">"<var>{.level}</var>"</span></span> <span class="attr special"><span class="attrname">for</span>=<span class="attrval">"notices"</span></span>&gt;</code><var>{.text}</var>
+            <var>{num(); numwarn(.level ~ /warning|error/ ? 1 : 0)}</var>
+            <code>&lt;<span class="tag ">div</span> <span class="attr"><span class="attrname">class</span>=<span class="attrval">"more-info"</span></span> <span class="attr special"><span class="attrname">if</span></span>&gt;</code>
+                <code>&lt;<span class="tag ">a</span> <span class="attr"><span class="attrname">href</span>=<span class="attrval">"<var>{.url}</var>"</span></span>&gt;</code>Additional information<code>&lt;/<span class="tag ">a</span>&gt;</code>
+            <code>&lt;/<span class="tag ">div</span>&gt;</code>
+        <code>&lt;<span class="tag ">ul</span>&gt;</code>
+        <code>&lt;<span class="tag ">p</span> <span class="attr special"><span class="attrname">use</span>=<span class="attrval">"lede"</span></span> <span class="attr special"><span class="attrname">if</span></span> <span class="attr"><span class="attrname">numwarn</span></span>&gt;</code> 3">Multiple notices need your attention!<code>&lt;/<span class="tag ">p</span>&gt;</code>
+    <code>&lt;/<span class="tag ">li</span>&gt;</code>
+    
+    <span class="comment">&lt;!-- extreme shortcuts, extreme combo --&gt;</span>
+    <code>&lt;<span class="tag ">p</span> <span class="attr special"><span class="attrname">for</span></span> <span class="attr special"><span class="attrname">if</span></span> <span class="attr special"><span class="attrname">use</span>=<span class="attrval">"wtf"</span></span> <span class="attr special"><span class="attrname">def</span></span> <span class="attr special"><span class="attrname">set</span></span> <span class="attr special"><span class="attrname">param</span></span>&gt;</code>hello!<var>{.}</var><code>&lt;/<span class="tag ">p</span>&gt;</code>
+    
+    <code>&lt;<span class="tag special">do</span> <span class="attr special"><span class="attrname">param</span>=<span class="attrval">"p"</span></span>&gt;</code>
+        <code>&lt;<span class="tag special">do</span> <span class="attr special"><span class="attrname">set</span>=<span class="attrval">"."</span></span>&gt;</code> <span class="comment">&lt;!-- implied by the param --&gt;</span>
+            <code>&lt;<span class="tag special">do</span> <span class="attr special"><span class="attrname">def</span>=<span class="attrval">"p(p)"</span></span>&gt;</code>
+                <code>&lt;<span class="tag special">do</span> <span class="attr special"><span class="attrname">use</span>=<span class="attrval">"wtf(*)"</span></span>&gt;</code>
+                    <code>&lt;<span class="tag special">do</span> <span class="attr special"><span class="attrname">set</span>=<span class="attrval">"."</span></span>&gt;</code> <span class="comment">&lt;!-- implied by the use --&gt;</span>
+                        <code>&lt;<span class="tag special">do</span> <span class="attr special"><span class="attrname">set</span>=<span class="attrval">"p"</span></span>&gt;</code>
+                            <code>&lt;<span class="tag special">do</span> <span class="attr special"><span class="attrname">for</span>=<span class="attrval">". in ."</span></span>&gt;</code>
+                                <code>&lt;<span class="tag ">p</span> <span class="attr special"><span class="attrname">if</span></span>&gt;</code>hello!<var>{.}</var><code>&lt;/<span class="tag ">p</span>&gt;</code>
+                            <code>&lt;/<span class="tag special">do</span>&gt;</code>
+                            <span class="comment">&lt;!-- at this point, . is the last item in the loop --&gt;</span>
+                        <code>&lt;/<span class="tag special">do</span>&gt;</code>
+                        <span class="comment">&lt;!-- at this point, p will be all of the <code>&lt;<span class="tag ">p</span>&gt;</code> tags that weren't empty.--&gt;</span>
+                    <code>&lt;/<span class="tag special">do</span>&gt;</code>
+                    <span class="comment">&lt;!-- at this point, dot will be empty (set removes the content from the stream)--&gt;</span>
+                    <span class="comment">&lt;!-- now wtf is evaluated and the parameters matched up. It may just get ., it may get p --&gt;</span>
+                <code>&lt;/<span class="tag special">do</span>&gt;</code>
+                <span class="comment">&lt;!-- and at this point, the result of the 'wtf' is in the output of the p() macro and we're about to return--&gt;</span>
+            <code>&lt;/<span class="tag special">do</span>&gt;</code>
+        <code>&lt;/<span class="tag special">do</span>&gt;</code>
+        <span class="comment">&lt;!-- at this point, dot will be empty (def also removes content from stream) --&gt;</span>
+    <code>&lt;/<span class="tag special">do</span>&gt;</code>
+    <span class="comment">&lt;!-- finally, at this point, local variable p is set again, with the coup de farce: the local variable shadows the def! --&gt;</span>
+    
+    <var>{rating()}</var>  
+    <code>&lt;<span class="tag ">footer</span> <span class="attr special"><span class="attrname">set</span></span>&gt;</code><var>{lede(chide(number))}</var><code>&lt;/<span class="tag ">footer</span>&gt;</code>
+<code>&lt;/<span class="tag ">html</span>&gt;</code>
+</pre></p></body></html>
+    </article><article class="" id="14">
+<nav>
+<a style="float: left;" href="#13">← previous</a>
+<a style="float: right;" href="#15">next →</a>
+</nav>
+        <html><body><p>
+    
+    </p><h1>Combo breaker....</h1>
+<p>These combos DO work well together:
+
+    </p><p><code>def</code> + <code>use</code> + <code>param</code> (with name) + <code>for</code> + <code>if</code>
+</p><p><code>param</code> + <code>set</code> (with name) + <code>for</code> + <code>if</code>
+</p><p><a href="#15">On to next &gt;&gt;</a></p>
+    
+    <pre><code>&lt;<span class="tag ">html</span>&gt;</code>
+
+    <span class="comment">&lt;!-- given a list, format it, pass to func, and return the result --&gt;</span>
+    <code>&lt;<span class="tag ">p</span> <span class="attr special"><span class="attrname">def</span></span> <span class="attr special"><span class="attrname">use</span>=<span class="attrval">"func"</span></span> <span class="attr special"><span class="attrname">param</span>=<span class="attrval">"name"</span></span> <span class="attr special"><span class="attrname">for</span></span> <span class="attr special"><span class="attrname">if</span></span>&gt;</code>...<code>&lt;/<span class="tag ">p</span>&gt;</code>
+    
+    <span class="comment">&lt;!-- slightly expanded --&gt;</span>
+    <code>&lt;<span class="tag ">p</span> <span class="attr special"><span class="attrname">def</span>=<span class="attrval">"p(name)"</span></span> <span class="attr special"><span class="attrname">use</span>=<span class="attrval">"func"</span></span> <span class="attr special"><span class="attrname">for</span>=<span class="attrval">". in name"</span></span> <span class="attr special"><span class="attrname">if</span></span>&gt;</code>...<code>&lt;/<span class="tag ">p</span>&gt;</code>
+
+    <span class="comment">&lt;!-- define a param, presumably expecting a list, then format it and set name with the result --&gt;</span>
+    <code>&lt;<span class="tag ">p</span> <span class="attr special"><span class="attrname">param</span></span> <span class="attr special"><span class="attrname">set</span></span> <span class="attr special"><span class="attrname">for</span></span> <span class="attr special"><span class="attrname">if</span></span>&gt;</code><code>&lt;/<span class="tag ">p</span>&gt;</code>
+
+<code>&lt;/<span class="tag ">html</span>&gt;</code>
+</pre>
+</body></html>
+    </article><article class="" id="15">
+<nav>
+<a style="float: left;" href="#14">← previous</a>
+<a style="float: right;" href="#16">next →</a>
+</nav>
+        <html><body><p>
+</p><h1>Quoting and content</h1>
+<p>Content is automatically quoted according to position within the document.
+
+</p><p>Doubled braces inserts one brace, and does not start a substitution. A brace just before a tag also inserts 
+the brace without being a substitution.
+
+</p><p>Nothing in the &lt;style&gt; or &lt;script&gt; is substituted.
+
+<pre><code>&lt;<span class="tag ">html</span>&gt;</code>
+    {<var>{ }</var>}
+    
+    <var>{<code>&lt;<span class="tag ">tt</span>&gt;</code>test<code>&lt;/<span class="tag ">tt</span>&gt;</code>}</var>
+
+    <code>&lt;<span class="tag ">a</span> <span class="attr"><span class="attrname">onclick</span>=<span class="attrval">"alert('Hello <var>{name}</var>')"</span></span>&gt;</code>Hello!<code>&lt;/<span class="tag ">a</span>&gt;</code>
+    
+    <code>&lt;<span class="tag ">a</span> <span class="attr"><span class="attrname">href</span>=<span class="attrval">"http://www.example.com/<var>{urlpart}</var>?n=<var>{parameter}</var>"</span></span>&gt;</code>Hello!<code>&lt;/<span class="tag ">a</span>&gt;</code>
+    
+    <code>&lt;<span class="tag ">style</span>&gt;</code>
+    Nothing in here is <var>{substituted}</var>
+    <code>&lt;/<span class="tag ">style</span>&gt;</code>
+    
+    <code>&lt;<span class="tag ">script</span>&gt;</code>
+    Nothing in here is <var>{substituted}</var>
+    <code>&lt;/<span class="tag ">script</span>&gt;</code>
+    
+<code>&lt;/<span class="tag ">html</span>&gt;</code>
+</pre></p></body></html>
+    </article><article class="" id="16">
+<nav>
+<a style="float: left;" href="#15">← previous</a>
+
+</nav>
+        <html><body><h1>Comments and front matter.</h1>
+<p>Comments are NOT processed or sent with the document.
+
+</p><p>Comments with a square bracket as the first character ie, &lt;!--[ --&gt; ARE sent.
+Without this rule, the "conditional comments" that older versions of IE used would
+not be sent causing pain.
+
+</p><p>Comments with a brace as the first character are front matter, or metadata about the template.
+You could store docs, copyright info, etc in here.
+
+</p><p>Front matter must be JSON to ensure maximum interoperability. That means the keys 
+must use quotes unlike maps in this templating language or objects in Javascript.
+
+<pre><span class="comment">&lt;!--<var>{"key": "value"}</var>--&gt;</span>
+<span class="comment">&lt;!-- comment - not even sent with document--&gt;</span>
+<![CDATA[]]>
+<code>&lt;<span class="tag ">html</span>&gt;</code>
+<span class="comment">&lt;!--<var>{ ...front matter for html macro... }</var>--&gt;</span>
+<span class="comment">&lt;!--[ comment that is sent ]--&gt;</span>
+<span class="comment">&lt;!-- comment not sent --&gt;</span>
+<span class="comment">&lt;!--- No <var>{substitution in comments}</var> --&gt;</span>
+
+    <code>&lt;<span class="tag special">do</span> <span class="attr special"><span class="attrname">def</span>=<span class="attrval">"foo()"</span></span>&gt;</code>
+        <span class="comment">&lt;!--<var>{front matter for foo}</var>--&gt;</span>
+    <code>&lt;/<span class="tag special">do</span>&gt;</code>
+<code>&lt;/<span class="tag ">html</span>&gt;</code>
+</pre></p></body></html>
+    </article>
+</body>
+</html>

@@ -1,20 +1,14 @@
-Combo breaker....
-
-These combos DO work well together:
-
-def + use + param (with name) + for + if
-
-param + set (with name) + for + if
-
 <html>
+	{pos ?= {}}
+	<h1>Combo breaker....</h1>
 
-	<!-- given a list, format it, pass to func, and return the result -->
-	<p def use="func" param="name" for if>...</p>
+	<p>These combos DO work well together:
+
+	<p><code>def</code> + <code>use</code> + <code>param</code> (with name) + <code>for</code> + <code>if</code>
+
+	<p><code>param</code> + <code>set</code> (with name) + <code>for</code> + <code>if</code>
+
+    <p><a href="#{pos.next.counter}">On to {pos.next.value.title ?: "next"} >></a></p>
 	
-	<!-- slightly expanded -->
-	<p def="p(name)" use="func" for=". in name" if>...</p>
-
-	<!-- define a param, presumably expecting a list, then format it and set name with the result -->
-	<p param set for if></p>
-
+	{builder::as_code('slides/combos.tatl')}
 </html>

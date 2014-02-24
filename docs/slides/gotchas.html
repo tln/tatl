@@ -1,59 +1,12 @@
-It's not all unicorns and rainbows! There are some gotchas we should bring up, especially 
+<p>It's not all unicorns and rainbows! There are some gotchas we should bring up, especially 
 about placeholders.
 
-Placeholders don't "hold open" your set and will leak outside your if. Compiler should warn about this.
+<p>Placeholders don't "hold open" your set and will leak outside your if. Compiler should warn about this.
 
-Lots of tags together can get pretty confusing. 
+<p>Lots of tags together can get pretty confusing. 
 
-The shortcuts can get out of hand... we're showing a few more, for and def.
+<p>The shortcuts can get out of hand... we're showing a few more, for and def.
 
-Lets look at how that expands!
+<p>Lets look at how that expands!
 
-<html use="common::html">
-	<title set>Hello {name}</title>
-	{*:lede}
-
-	<li>
-		<!-- not working -->
-		{++:num} notices total / <do if="numwarn">{++:numwarn} warning notices</do>
-
-		<!-- not working -->
-		{++:num} notices total / <do set="numwarn">{++:numwarn} warning notices</do>
-		<ul class="{.level}" for="notices">{.text}
-			{num(); numwarn(.level ~ /warning|error/ ? 1 : 0)}
-			<div class="more-info" if>
-				<a href="{.url}">Additional information</a>
-			</div>
-		<ul>
-		<p use="lede" if="numwarn > 3">Multiple notices need your attention!</p>
-	</li>
-	
-	<!-- extreme shortcuts, extreme  -->
-	<p for if use="wtf" def set param>hello!{.}</p>
-	
-	<do param="p">
-		<do set="."> <!-- implied by the param -->
-			<do def="p(p)">
-				<do use="wtf(*)">
-					<do set="."> <!-- implied by the use -->
-						<do set="p">
-							<do for=". in .">
-								<p if>hello!{.}</p>
-							</do>
-							<!-- at this point, . is the last item in the loop -->
-						</do>
-						<!-- at this point, p will be all of the <p> tags that weren't empty.-->
-					</do>
-					<!-- at this point, dot will be empty (set removes the content from the stream)-->
-					<!-- now wtf is evaluated and the parameters matched up. It may just get ., it may get p -->
-				</do>
-				<!-- and at this point, the result of the 'wtf' is in the output of the p() macro and we're about to return-->
-			</do>
-		</do>
-		<!-- at this point, dot will be empty (def also removes content from stream) -->
-	</do>
-	<!-- finally, at this point, local variable p is set again, with the coup de farce: the local variable shadows the def! -->
-	
-	{rating()}	
-	<footer set>{lede(chide(number))}</footer>
-</html>
+{builder::as_code('slides/gotchas.tatl')}

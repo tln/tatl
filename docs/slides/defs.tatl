@@ -1,0 +1,14 @@
+<html>
+    <h1>Hello {name}<h1>
+    {chide(number)} 
+    <li>
+        <ul class="{.level}" for="notices">{.text}
+            <div class="more-info" if>
+                <a href="{.url}">Additional information</a>
+            </div>
+        <ul>
+    </li>
+    {rating()}  
+    <hr>
+    {chide(number)}
+</html>

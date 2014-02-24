@@ -1,0 +1,13 @@
+<!--{"key": "value"}-->
+<!-- comment - not even sent with document-->
+<![CDATA[]]>
+<html>
+<!--{ ...front matter for html macro... }-->
+<!--[ comment that is sent ]-->
+<!-- comment not sent -->
+<!--- No {substitution in comments} -->
+
+    <do def="foo()">
+        <!--{front matter for foo}-->
+    </do>
+</html>

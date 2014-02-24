@@ -1,28 +1,10 @@
-
-Ok. Increent placeholders work somewhat similarly... you can also access the 
+<p>Ok. Increment placeholders work somewhat similarly... you can also access the 
 count in further logic.
 
-Also: regexes! and ternary operator! The synx allows regexes, and other comparisons 
-in the if="" and with the ternary only -- this isn't as general as other languages.
+<p>Also: regexes! and ternary operator! The syntax allows regexes, and other comparisons 
+in the <code>if=""</code> and with the ternary operator. (and thats all -- this isn't as 
+general as other languages).
 
-We're also calling the lede() via use="". use="" will set . to be the result of the 
-whole tag. Thats what placeholders have as their parameter name by default.
+<p>We're also calling the <code>lede()</code> via <code>use=""</code>. <code>use=""</code> will set <code>.</code> to be the result of the whole tag. Thats what placeholders have as their parameter name by default.
 
-<html use="common::html">
-	<title set>Hello {name}</title>
-	{*:lede}
-
-	<li>
-		{++:num} notices total / {++:numwarn} warning notices
-		<ul class="{.level}" for="notices">{.text}
-			{num(); numwarn(.level ~ /warning|error/ ? 1 : 0)}
-			<div class="more-info" if>
-				<a href="{.url}">Additional information</a>
-			</div>
-		<ul>
-		<p use="lede" if="numwarn > 3">Multiple notices need your attention!</p>
-	</li>
-	
-	{rating()}	
-	<footer set>{lede(chide(number))}</footer>
-</html>
+{builder::as_code('slides/placeholders2.tatl')}

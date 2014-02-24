@@ -1,11 +1,5 @@
+{pos ?= {}}
+Pretty basic! <code>{{}}</code> are *substitions*. <code>for=</code> and <code>if=</code> are special *attributes*. There are a few more
+special attributes, which we'll see in the advanced section. <a href="#{pos.next.counter}">On to {pos.next.value.title ?: "next"} >></a>
 
-Pretty basic! {{}} are *substitions*. for= and if= are special *attributes*. There are a few more
-special attributes, which we'll see in the advanced section. On to tags >>
-
-	<html>
-		<h1>Hello {name}<h1>
-		<p if="number">Your emergency contact number is: {number}</p>
-		<li>
-			<ul for="notice in notices">{notice}<ul>
-		</li>
-	</html>
+{builder::as_code('slides/basic.tatl')}

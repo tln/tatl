@@ -1,45 +1,14 @@
+<h1>Calls, defs</h1>
 
-Calls, defs
-
-This is getting complicated. Lets move out some of the pieces using macros.
+<p>This is getting complicated. Lets move out some of the pieces using macros.
 The second file is called common.html so we can access the macros within using common::name.
 
-The def= tag defines a macro. Note that we moved the {labels = {..}} inside the macro.
+<p>The <code>def=</code> tag defines a macro. Note that we moved the <code>{{labels = {{..}}}}</code> inside the macro.
 When it was outside the macro, it was a local var of the implicit html macro. Macros can 
 only access parameters that are passed in.
 
-We call a local function via {function()} and function from another template via {template::function()}
+<p>We call a local function via {{function()}} and function from another template via {{template::function()}}
 
-<html>
-	<h1>Hello {name}<h1>
-	{chide(number)}	
-	<li>
-		<ul class="{.level}" for="notices">{.text}
-			<div class="more-info" if>
-				<a href="{.url}">Additional information</a>
-			</div>
-		<ul>
-	</li>
-	{rating()}	
-	<hr>
-	{chide(number)}
-</html>
+{builder::as_code('slides/defs.tatl')}
 
-<html>
-	<h1>{title}</h1>
-
-	<p def="chide(number)" if>
-		Your emergency contact number is: {number}
-		<else>
-		Please set an emergency contact number!
-	</p>
-	
-	<form def="rating">
-		Rate our service!
-		{labels = {1: "(Needs work)", 5: "(Fantastic)"}; }
-		<do for="5...1">
-			<input type="radio" name="rating" value="{.}"> {.} {labels[.]}
-		</do>
-	</form>
-	
-</html>
+{builder::as_code('slides/defs2.tatl')}

@@ -1,39 +1,12 @@
-More data, more loops. 
+<h1>More data, more loops.</h1>
 
-Ok, we need labels for the radio buttons. Lets add set a local variable. Then we look up the number.
+<p>Ok, we need labels for the radio buttons. Lets add set a local variable. Then we look up the number.
 If its not found, then nothing is inserted -- expression paths don't fail on missing values.
 
-Lets add another tag: set="". This will take the tag, after execution of the for, if etc, and
-set a local variable. Theres also a filter -- set="" requires |tag or |contents.
+<p>Lets add another tag: <code>set=""</code>. This will take the tag, after execution of the <code>for</code>, <code>if</code> etc, and
+save it to a local variable. Theres also a filter -- <code>set=""</code>
 
-For the sake of a scenario, lets say we've decided to nag people about 
+<p>For the sake of a scenario, lets say we've decided to nag people about 
 their number in the footer, too; we're referencing our variable like it was passed in.
 
-<html>
-	<h1>Hello {name}<h1>
-	<p set="chide|tag" if>
-		Your emergency contact number is: {number}
-		<else>
-		Please set an emergency contact number!
-	</p>
-	
-	<li>
-		<ul class="{.level}" for="notices">{.text}
-			<div class="more-info" if>
-				<a href="{.url}">Additional information</a>
-			</div>
-		<ul>
-	</li>
-	
-	{labels = {1: "(Needs work)", 5: "(Fantastic)"}; }
-	<form>
-		Rate our service!
-		<do for="5...1">
-			<input type="radio" name="rating" value="{.}"> {.} {labels[.]}
-		</do>
-	</form>
-	
-	<hr>
-	{chide}
-	
-</html>
+{builder::as_code('slides/moreloops.tatl')}

@@ -1,27 +1,31 @@
 <html>
 <head>
-	<script type="text/javascript" src="//ajax.googleapis.com/ajax/libs/jquery/1.10.2/jquery.min.js"></script>
-	<script>
-	function changetab(target) {
-		$(".selected").removeClass("selected");
-		$('[data-href="'+target+'"], '+target).addClass("selected");
-		document.location.replace(target)
-	}
-    if (document.location.hash) {
-		changetab(document.location.hash)
-	}
-	</script>	
-	<style>
-	article {display: none;}
-	article.selected {display:block;}
-	</style>
+    <script type="text/javascript" src="http://ajax.googleapis.com/ajax/libs/jquery/1.10.2/jquery.min.js"></script>
+    <script>
+    $(function () {
+        function changetab() {
+            var target = document.location.hash
+            $(".selected").removeClass("selected");
+            $('[data-href="'+target+'"], '+target).addClass("selected");
+        }
+        if (document.location.hash) {
+            changetab()
+        }
+        window.onhashchange = changetab
+    });
+    </script>   
+    <link rel="stylesheet" href="docs.css" type="text/css" charset="utf-8">
+    <style>
+    article {display: none;}
+    article.selected {display:block;}
+    </style>
 </head>
 <body>
-	<article id="{.counter}" for="builder::scandir('slides')">
-		<nav>
-			<a style="float: left;" href="#{.prev.counter}" if>&larr; previous</a>
-			<a style="float: right;" href="#{.next.counter}" if>next &rarr;</a>
-		</nav>
-		{.value.render(.)}
-	</article>
+    <article class="{.first?'selected'}" id="{.counter}" for="builder::scandir('slides')">
+        <nav>
+            <a style="float: left;" href="#{.prev.counter}" if>&larr; previous</a>
+            <a style="float: right;" href="#{.next.counter}" if>next &rarr;</a>
+        </nav>
+        {.value.render(.)|tatlrt.safe}
+    </article>
 </body>

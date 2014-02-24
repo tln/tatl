@@ -1,0 +1,27 @@
+<html use="common::html">
+    <title set>Hello {name}</title>
+    {*:lede}
+
+    <li>
+        <ul class="{.level}" for="notices">{.text}
+            <div class="more-info" if>
+                <a href="{.url}">Additional information</a>
+            </div>
+        <ul>
+    </li>
+    
+    {rating()}  
+    <footer set>{chide(number); result}</footer>
+    <do set="dontshow">{lede(result)}</do>
+
+    <!-- inlined -->
+    <footer set>{lede(chide(number))}</footer>
+
+    <!-- filter -->
+    <footer set>{chide(number)|lede}</footer>
+
+    <!-- hide expression result -->
+    <footer set>{chide(number)}</footer>
+    {lede(footer); ""}
+
+</html>

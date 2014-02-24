@@ -1,0 +1,17 @@
+<html use="common::html">
+    <title set="footer|contents">Hello {name}</title>
+    {footer = chide(number); footer}
+    
+    <li>
+        <ul class="{.level}" for="notices">{.text}
+            <div class="more-info" if>
+                <a href="{.url}">Additional information</a>
+            </div>
+        <ul>
+    </li>
+    
+    {rating()}  
+    
+    <hr>
+    <footer set="footer|contents">{chide(number)}</footer>
+</html>

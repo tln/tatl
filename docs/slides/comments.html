@@ -1,27 +1,15 @@
-Comments and front matter.
+<h1>Comments and front matter.</h1>
 
-Comments are NOT processed or sent with the document.
+<p>Comments are NOT processed or sent with the document.
 
-Comments with a square bracket as the first character ie, <!--[ --> ARE sent.
+<p>Comments with a square bracket as the first character ie, &lt;!--[ --&gt; ARE sent.
 Without this rule, the "conditional comments" that older versions of IE used would
 not be sent causing pain.
 
-Comments with a brace as the first character are front matter, or metadata about the template.
+<p>Comments with a brace as the first character are front matter, or metadata about the template.
 You could store docs, copyright info, etc in here.
 
-Front matter must be JSON to ensure maximum interoperability. That means the keys 
+<p>Front matter must be JSON to ensure maximum interoperability. That means the keys 
 must use quotes unlike maps in this templating language or objects in Javascript.
 
-<!--{"key": "value"}-->
-<!-- comment - not even sent with document-->
-<![CDATA[]]>
-<html>
-<!--{ ...front matter for html macro... }-->
-<!--[ comment that is sent ]-->
-<!-- comment not sent -->
-<!--- No {substitution in comments} -->
-
-	<do def="foo()">
-		<!--{front matter for foo}-->
-	</do>
-</html>
+{builder::as_code('slides/comments.tatl')}

@@ -1,54 +1,16 @@
-The use= tag + params = inheritence.
+<p>The <code>use=</code> attribute + <code>param=</code> = inheritence.
 
-We mentioned the top level tag was implicitly a macro. Specifically, if not other added, a def="html(*)" is assumed.
-The * means, add any parameters defined to the arguments.
+<p>We mentioned the top level tag was implicitly a macro. Specifically, if not other added, a <code>def="html(*)"</code> is assumed.
+The <code>*</code> means, add any parameters defined to the arguments.
 
-We could just call the template::html macro at the end, but a better way is the use="tag".
+<p>We could just call the <code>template::html</code> macro at the end, but a better way is the use="tag".
 That will find the local variables that correspond to the parameters of the template, 
 and pass them.
 
-Notice that our parameter isn't constrained to being used in a single place. Our base template is using it for the 
+<p>Notice that our parameter isn't constrained to being used in a single place. Our base template is using it for the 
 title of the page, as well. In general you can use variables after they're defined, eg you can use variables from a 
-for loop 
+for loop.
 
-<html use="common::html">
-	<title set="footer|contents">Hello {name}</title>
-	{footer = chide(number); footer}
-	
-	<li>
-		<ul class="{.level}" for="notices">{.text}
-			<div class="more-info" if>
-				<a href="{.url}">Additional information</a>
-			</div>
-		<ul>
-	</li>
-	
-	{rating()}	
-	
-	<hr>
-	<footer set="footer|contents">{chide(number)}</footer>
-</html>
+{builder::as_code('slides/use.tatl')}
 
-<html def="html(*)">
-	<title param="title">{title}</title>
-	<h1>{title}</h1>
-	
-	<p def="chide(number)" if>
-		Your emergency contact number is: {number}
-		<else>
-		Please set an emergency contact number!
-	</p>
-	
-	<form def="rating">
-		Rate our service!
-		{labels = {1: "(Needs work)", 5: "(Fantastic)"}; }
-		<do for="5...1">
-			<input type="radio" name="rating" value="{.}"> {.} {labels[.]}
-		</do>
-	</form>
-	
-	<footer param="footer">
-		<hr>
-		{footer}
-	</footer>
-</html>
+{builder::as_code('slides/use2.tatl')}

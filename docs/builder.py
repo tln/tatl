@@ -1,4 +1,4 @@
-import os, json, tatlrt, tatl
+import os, json, tatlrt, tatl, re
 
 def scandir(dir):
     f = os.path.join(dir, 'index.json')
@@ -21,7 +21,7 @@ def reorder(files, index):
     sortkey = index.get('sortkey', 'name')
     def key(entry):
         try:
-            ix = order.index(entry.name)
+            ix = order.index(entry.file)
         except:
             ix = len(order)
         return (ix, getattr(entry, sortkey, ''))
@@ -30,6 +30,8 @@ def reorder(files, index):
     
 class Base(object):
     def __init__(self, dir, file):
+        self.dir = dir
+        self.file = file
         self.name = os.path.splitext(file)[0]
         self.path = os.path.join(dir, file)
         self.__dict__.update(self.front_matter())
@@ -52,3 +54,28 @@ class Template(Base):
         
 class Markdown(Base):
     pass
+
+
+def as_code(path):
+    html = open(path).read()
+    html = html.replace('&', '&amp;')
+    specialtags = {'do': 'special', 'else': 'special'}
+    def attr((attr, val)):
+        cls = 'attr'
+        if attr in 'def for use param if set'.split():
+            cls += ' special'
+        if val:
+            return '<span class="%s"><span class="attrname">%s</span>=<span class="attrval">%s</span></span>' % (cls, attr, val)
+        else:
+            return '<span class="%s"><span class="attrname">%s</span></span>' % (cls, attr)
+        
+    def tag(m):
+        e, tag, guts = m.groups()
+        l = ['%s<span class="tag %s">%s</span>' % (e, specialtags.get(tag, ''), tag)]
+        l += map(attr, re.findall('''(\w+)(?:=(".*?"|'.*?'))?''', guts))
+        return '<code>&lt;%s&gt;</code>' % ' '.join(l)
+
+    html = re.sub('<(/?)(\w+)(.*?)>', tag, html)
+    html = re.sub('({[^{}]+(?:{.*?}.*?)?})', '<var>\\1</var>', html)
+    html = re.sub('<(!--.*?--)>', '<span class="comment">&lt;\\1&gt;</span>', html)
+    return tatlrt.safe('<pre>%s</pre>' % html)

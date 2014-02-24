@@ -1,0 +1,17 @@
+<html>
+    <h1>Hello {name}<h1>
+    <p if>
+        Your emergency contact number is: {number}
+        <else>
+        Please set an emergency contact number!
+    </p>
+    <li>
+        <ul for="notices">{.}<ul>
+    </li>
+    <form>
+        Rate our service!
+        <do for="5...1">
+            <input type="radio" name="rating" value="{.}"> {.}
+        </do>
+    </form>
+</html>
