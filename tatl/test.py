@@ -185,7 +185,7 @@ while 1:
             continue
         if inp.startswith('out '):
             out = inp[4:]
-            inp - last
+            inp = last
         if inp == 'unused':
             print t_
         if not inp:

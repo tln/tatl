@@ -48,13 +48,20 @@ class Function:
         code.combine(self.init.bot)
         code.optimize()
 
+        #import pdb
+        #pdb.set_trace()
         lvars = set(self.args.lvars)
+        hasvar = lvars.copy()
         for op in code.ops:
+            if isinstance(op, FuncEnd):
+                break
             for rvar in op.rvars:
                 if rvar not in lvars:
                     InitLocal(rvar).addto(self.init)
+                    hasvar.add(rvar)
                     lvars.add(rvar)
             lvars.update(op.lvars)
+        InitLvars(lvars - hasvar).addto(self.init)
         
         self.init.bot = code
         self.code = None
@@ -65,7 +72,7 @@ class FuncDef(ArgPart):
     fields = ['name', 'args']
     Code = Indent
     pyfmt = 'def %(name)s(%(args)s):'
-    jsfmt = '%(name)s = tatl._bind(function %(name)s(%(args)s) {'
+    jsfmt = '%(name)s = tatlrt._bind(function %(name)s(%(args)s) {'
     def __init__(self, name, args, result, filters):
         ArgPart.__init__(self, Lvar(name), args)
         self.result = result
@@ -75,9 +82,16 @@ class FuncDef(ArgPart):
         block.top.add(self,
             FuncPreamble('attr')
             )
+        if self.result:
+            block.bot.add(
+                Asgn('dot', Impl('_.result()')),
+                Return(self.result),
+            )
+        else:
+            block.bot.add(
+                Return(Expr([], '_.result()')),
+            )
         block.bot.add(
-            Expr([], 'dot = _.result()'),
-            Part('return %(0)s', 'return %(0)s', self.result or Expr([], 'dot')),
             FuncEnd(),
             *[Filter(self.name, filt) for filt in self.filters]
         )
@@ -132,7 +146,7 @@ class Path(BasePart):
     def __init__(self, paths):
         BasePart.__init__(self)
         var = paths.pop(0)
-        self.lvars = [var]
+        self.rvars = [var]
         if not paths:
             self.py = self.js = var
         elif len(paths) == 1:
@@ -213,6 +227,10 @@ class FuncPreamble(ArgExpr):
 
 class FuncEnd(_End):
     js = '})'
+class Return(ArgPart):
+    fields = ['expr']
+    jsfmt = pyfmt = 'return %(expr)s'
+
 class Import(ArgExpr):
     pyfmt = 'import %(arg)s'
     jsfmt = "var %(arg)s = require(%(arg)r)"    # hack! ./t_tmpl
@@ -223,6 +241,16 @@ class InitLocal(_Var):  # SV Setup local vars
     pyfmt = '%(var)s = _kw.get(%(var)r)'
     jsfmt = 'var %(var)s = this.%(var)s'
             
+
+class InitLvars(BasePart):  # SV Setup local vars
+    def __init__(self, vars):
+        BasePart.__init__(self)
+        v = ', '.join(vars)
+        self.py = v and ('# locals: ' + v)
+        self.js = v and ('var ' + v)
+    def addto(self, block):
+        if self.js:
+            block.top.add(self)
 
 class _Emit(ArgPart):
     fields = ['expr']
@@ -313,6 +341,7 @@ class UseStart(BasePart):                 # CS Call (use) start
 class UseEnd0(BasePart):
     py = 'dot, _emit = _.pop()'
     js = 'dot = _.pop()'
+    lvars = ['dot']
 class UseEndAuto(ArgPart):
     fields = ['expr']
     pyfmt = '_emit(_.applyauto(%(expr)s, locals()))'
