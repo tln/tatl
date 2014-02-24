@@ -1,0 +1,20 @@
+Combo breaker....
+
+These combos DO work well together:
+
+def + use + param (with name) + for + if
+
+param + set (with name) + for + if
+
+<html>
+
+	<!-- given a list, format it, pass to func, and return the result -->
+	<p def use="func" param="name" for if>...</p>
+	
+	<!-- slightly expanded -->
+	<p def="p(name)" use="func" for=". in name" if>...</p>
+
+	<!-- define a param, presumably expecting a list, then format it and set name with the result -->
+	<p param set for if></p>
+
+</html>

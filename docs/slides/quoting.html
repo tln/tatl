@@ -1,0 +1,27 @@
+Quoting and content
+
+Content is automatically quoted according to position within the document.
+
+Doubled braces inserts one brace, and does not start a substitution. A brace just before a tag also inserts 
+the brace without being a substitution.
+
+Nothing in the <style> or <script> is substituted.
+
+<html>
+	{{ }}
+	
+	{<tt>test</tt>}
+
+	<a onclick="alert('Hello {name}')">Hello!</a>
+	
+	<a href="http://www.example.com/{urlpart}?n={parameter}">Hello!</a>
+	
+	<style>
+	Nothing in here is {substituted}
+	</style>
+	
+	<script>
+	Nothing in here is {substituted}
+	</script>
+	
+</html>

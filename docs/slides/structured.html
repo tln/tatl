@@ -1,0 +1,27 @@
+Lets see what happens if the data is more structured. The notices now has a level, text and a link for more details. We just change the substitution to use variable.path 
+
+We havent shown what kind of data structure the notices is passed as but dotted paths work with lists, dicts, and objects, and if the key isn't found, its just empty (more on empty).
+
+Notice how the empty if came in handy again!
+
+	<html>
+		<h1>Hello {name}<h1>
+		<p if>
+			Your emergency contact number is: {number}
+			<else>
+			Please set an emergency contact number!
+		</p>
+		<li>
+			<ul class="{.level}" for="notices">{.text}
+				<div class="more-info" if>
+					<a href="{.url}">Additional information</a>
+				</div>
+			<ul>
+		</li>
+		<form>
+			Rate our service!
+			<do for="1...5">
+				<input type="radio" name="rating" value="{.}"> {.}
+			</do>
+		</form>
+	</html>

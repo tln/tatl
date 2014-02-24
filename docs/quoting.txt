@@ -1,0 +1,58 @@
+# Quoting specification for t_tmpl
+#
+# Each line should have a simple selector (w/o spaces), optional handler, and attribute=quoter 
+# or no-attribute repeated. attr*=quoter and no-* should work. The star selector must be first, 
+# and is the default. To find out how a tag is handled, look for the first selector that matches, 
+# and then first attribute that matches. If there are no matches, look at the default attributes.
+#
+# no-* refers to the special attributes.
+#
+# The t_tmpl special attrs, def= set= elide for= if= param= use=, all have their special meanings unless
+# there is a no-attribute that matches or an attribute=quoter that matches.
+#
+# attr -- attribute encoded, including quotes
+# content -- attribute encoded, not including quotes.
+# url -- attribute contains url. Variable substition should include % escapes (and attribute encoding).
+# jsattr -- javascript attribute. Variable substitution should be in json format (and attribute encoded).
+# jstag -- javascript script tag. Variable substitution should be in json format, with / - '+'/.
+# cssattr -- css in attribute. Format unclear, attributes should be encoded.
+# csstag -- css script tag. Format unclear. '/' or '/style' in the substitution might "end" the tag prematurely, but 
+#         the recourse used for jstag won't work...
+
+* content style=cssattr on*=jsattr *=attr
+
+html no-for no-if
+label for=attr
+output for=attr
+script jstag src=url
+style csstag
+
+# http://stackoverflow.com/questions/2725156/complete-list-of-html-tag-attributes-which-have-a-url-value
+a href=url
+applet archive=url
+applet codebase=url
+area href=url
+audio src=url
+base href=url
+blockquote cite=url
+body background=url
+button formaction=url
+command icon=url
+del cite=url
+embed src=url
+form action=url
+frame longdesc=url
+frame src=url
+head profile=url
+html manifest=url
+iframe longdesc=url src=url
+img longdesc=url src=url losrc=url hisrc=url usemap=url
+input formaction=url
+input src=url usemap=url
+ins cite=url
+link href=url
+object archive=url
+object classid=url codebase=url data=url usemap=url
+q cite=url
+source src=url
+video poster=url src=url

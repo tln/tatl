@@ -1,0 +1,36 @@
+From now on we'll ignore common. Lets introduce placeholders. We want to put some content at the top to the page (the chide) that we calculate later. Ok, this could be solved in other ways! But  its a good introduction point.
+
+* Placeholders make a function. 
+* When called, they put the parameter back where the placeholder was created.
+* Star placeholders return their argument so they can be inlined
+* BTW -- there's another way to avoid showing an expression result
+
+Lets introduce increment placeholders next.
+
+<html use="common::html">
+	<title set>Hello {name}</title>
+	{*:lede}
+
+	<li>
+		<ul class="{.level}" for="notices">{.text}
+			<div class="more-info" if>
+				<a href="{.url}">Additional information</a>
+			</div>
+		<ul>
+	</li>
+	
+	{rating()}	
+	<footer set>{chide(number); result}</footer>
+	<do set="dontshow">{lede(result)}</do>
+
+    <!-- inlined -->
+	<footer set>{lede(chide(number))}</footer>
+
+    <!-- filter -->
+	<footer set>{chide(number)|lede}</footer>
+
+    <!-- hide expression result -->
+	<footer set>{chide(number)}</footer>
+	{lede(footer); ""}
+
+</html>
