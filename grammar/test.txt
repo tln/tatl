@@ -1,0 +1,52 @@
+def="foo"
+for="var1 in expr"
+for="expr"
+for="key, value in expr"
+for="var1 = expr; key in expr"
+if="expr"
+if="var1 = expr; expr"
+def="name(arg, arg)"
+def="name(arg, arg) |filter"
+def="name(*)"
+def="name(arg) = expr"
+set="var1"
+param="var1"
+param="var1, var1"
+use="template::html(expr, expr)"
+use="template::html"
+use="var1 = expr; var12 = expr; template::html"
+{var1}
+{var1.var1}
+{template::var1}
+{.}
+{var1[0]}
+{.[0]}
+{var1[var1]}
+{macro(var1, var1)}
+{var1 = path}
+{var1 = "value"}}
+{var1 = expr}
+{var1 = .path(); var12}
+{var1 ?= default}
+{1...5}
+{0..5}
+{[var1, "val", 3]}
+{[var1, "val", 3, *0..9]}
+{{name: var11, name2: "value"}}
+{{name: var11, name2: "value", *foo, name3: "value"}}
+{expr |afilter}
+{test ? value : value}
+{1 lt 2 ? 1}
+{1 lt x le y ?: 12}
+{a == 2 ? "couple" : "few"}
+{"foo" ~ /bar/ ? yes}
+{a !~ /bar/ ? yes}
+{a ~! /bar/ ? yes}
+{"1"}
+{1}
+{[1]}
+{{a:1}}
+{[1,*a]}
+{[1,*a,1]}
+{[*a]}
+{{a:1,b:"2",*c,d:[1,2,3]}}

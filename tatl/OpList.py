@@ -68,11 +68,13 @@ class BasePart(Op):
     type = ''
     def out(self):
         l = []
-        if self.py == self.js:
-            l.append('py/js: '+self.py)
+        py = self.code('py')
+        js = self.code('js')
+        if py == js:
+            l.append('py/js: '+py)
         else:
-            l.append('py: '+self.py)
-            l.append('js: '+self.js)
+            l.append('py: '+py)
+            l.append('js: '+js)
         line = ''
         if self.type:
             line += 'type: %s ' % self.type

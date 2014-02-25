@@ -12,7 +12,7 @@ from __future__ import print_function, division, absolute_import, unicode_litera
 from grako.parsing import * # @UnusedWildImport
 from grako.exceptions import * # @UnusedWildImport
 
-__version__ = '14.055.00.01.53'
+__version__ = '14.056.15.55.40'
 
 class ExprParser(Parser):
     def __init__(self, whitespace=None, nameguard=True, **kwargs):
@@ -116,6 +116,7 @@ class ExprParser(Parser):
             with self._optional():
                 self._token(',')
         self._token(')')
+        self.ast.add_list('@', self.last_node)
 
     @rule_def
     def _arg_(self):

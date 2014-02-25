@@ -46,7 +46,6 @@ class ExprSemantics(ExprParser.ExprParser):
         ast[0] = 'dot'
         return self.dottedPath(ast)
 
-    @debug
     def externalPath(self, ast):
         return IR.Expr([], '_.load(%r, %r)' % (ast.module, ast.path))
 
@@ -178,9 +177,9 @@ class ExprSemantics(ExprParser.ExprParser):
                 parts = IR.Part(outer, outer, parts)
         parts.out() # check its ok
         return parts
-            
+
     def call(self, ast):
-        return IR.Part('%(0)s(%(1)s)', '%(0)s(%(1)s)', ast.fn, IR.List(ast.arg))
+        return IR.Part('%(0)s(%(1)s)', '%(0)s(%(1)s)', ast.fn, IR.List(ast.arg or []))
 
     def PYEXPR(self, ast):
         py_code = ''.join(ast[1:-1])
@@ -191,6 +190,7 @@ class ExprSemantics(ExprParser.ExprParser):
         return IR.STAR_ARG if ast == '*' else IR.Lvar(ast)
         
     def arglist(self, ast):
+        assert ast.pop() == ')'
         return IR.Args(ast)
     
     # externally called...

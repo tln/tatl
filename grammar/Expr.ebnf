@@ -31,7 +31,7 @@ attrs = 'def="' @defExpr '"'
 	| top ;
 
 defExpr = name:name [args:arglist] ['=' result:expr] {filter+:filter} ;
-	arglist = '(' [@+:arg {',' @+:arg} [',']] ')' ;
+	arglist = '(' [@+:arg {',' @+:arg} [',']] @+:')' ;
 	arg = @name | @'*' ;
 	name = NAME ;
 setExpr = lvar ;

@@ -78,6 +78,8 @@ class FuncDef(ArgPart):
     pyfmt = 'def %(name)s(%(args)s):'
     jsfmt = '%(name)s = tatlrt._bind(function %(name)s(%(args)s) {'
     def __init__(self, name, args, result, filters):
+        if args is None:
+            args = Args([STAR_ARG])
         ArgPart.__init__(self, Lvar(name), args)
         self.result = result
         self.filters = filters
@@ -224,6 +226,9 @@ class Filter(ArgPart):
     fields = ['name', 'filt']
     pyfmt = jsfmt = '%(name)s = %(filt)s(%(name)s)'
     
+class ModPreamble(BasePart):
+    py = '# -*- coding:UTF-8 -*-'
+    js = ''
 class FuncPreamble(ArgExpr):
     fields = ['context']
     pyfmt = '_, _q, _emit = tatlrt._ctx(%(context)r)'
