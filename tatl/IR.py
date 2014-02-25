@@ -8,14 +8,17 @@ class Module:
     def __init__(self, source):
         self.block = Block(IR())
         self.functions = OrderedDict()
+        self.imports = set()
         self.add_import('tatlrt')
         
     def startdef(self, funcdef):
-        fn = self.functions[funcdef.name] = Function(funcdef)
+        fn = self.functions[funcdef.name] = Function(self, funcdef)
         return fn
         
     def add_import(self, module):
-        Import(module).addto(self.block)
+        if module not in self.imports:
+            self.imports.add(module)
+            Import(module).addto(self.block)
         
     def done(self):
         for fn in self.functions.values():
@@ -29,7 +32,8 @@ class Module:
         return self.block.top.view()
 
 class Function:
-    def __init__(self, funcdef):
+    def __init__(self, module, funcdef):
+        self.module = module
         self.name = funcdef.name
         self.code = Block(IR())
         self.init = Block(IR())
@@ -50,7 +54,7 @@ class Function:
 
         #import pdb
         #pdb.set_trace()
-        lvars = set(self.args.lvars)
+        lvars = set(self.args.lvars) | self.module.imports
         hasvar = lvars.copy()
         for op in code.ops:
             if isinstance(op, FuncEnd):
