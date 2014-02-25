@@ -1,7 +1,7 @@
 <h1>Calls, defs</h1>
 
 <p>This is getting complicated. Lets move out some of the pieces using macros.
-The second file is called common.html so we can access the macros within using common::name.
+The second file is called <code>common.html</code>, and would be compiled into a module called <code>common</code>; we can access the macros within that module by using <code>common::name</code>.
 
 <p>The <code>def=</code> tag defines a macro. Note that we moved the <code>{{labels = {{..}}}}</code> inside the macro.
 When it was outside the macro, it was a local var of the implicit html macro. Macros can 
@@ -11,4 +11,4 @@ only access parameters that are passed in.
 
 {builder::as_code('slides/defs.tatl')}
 
-{builder::as_code('slides/defs2.tatl')}
+{builder::as_code('slides/defs2.tatl', 'common.html')}

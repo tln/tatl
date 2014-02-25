@@ -1,5 +1,6 @@
 <html>
 <head>
+	<meta charset="UTF-8">
     <script type="text/javascript" src="http://ajax.googleapis.com/ajax/libs/jquery/1.10.2/jquery.min.js"></script>
     <script>
     $(function () {
@@ -25,6 +26,7 @@
         <nav>
             <a style="float: left;" href="#{.prev.counter}" if>&larr; previous</a>
             <a style="float: right;" href="#{.next.counter}" if>next &rarr;</a>
+			<span>{.value.title ?: .value.name}</span>
         </nav>
         {.value.render(.)|tatlrt.safe}
     </article>

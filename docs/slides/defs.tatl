@@ -1,6 +1,6 @@
 <html>
     <h1>Hello {name}<h1>
-    {chide(number)} 
+    {common::chide(number)} 
     <li>
         <ul class="{.level}" for="notices">{.text}
             <div class="more-info" if>
@@ -10,5 +10,5 @@
     </li>
     {rating()}  
     <hr>
-    {chide(number)}
+    {common::chide(number)}
 </html>

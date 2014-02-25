@@ -56,7 +56,7 @@ class Markdown(Base):
     pass
 
 
-def as_code(path):
+def as_code(path, filename=''):
     html = open(path).read()
     html = html.replace('&', '&amp;')
     specialtags = {'do': 'special', 'else': 'special'}
@@ -78,4 +78,7 @@ def as_code(path):
     html = re.sub('<(/?)(\w+)(.*?)>', tag, html)
     html = re.sub('({[^{}]+(?:{.*?}.*?)?})', '<var>\\1</var>', html)
     html = re.sub('<(!--.*?--)>', '<span class="comment">&lt;\\1&gt;</span>', html)
-    return tatlrt.safe('<pre>%s</pre>' % html)
+    html = '<pre class="html tatl">%s</pre>' % html
+    if filename:
+        html = '<div class="filename">%s</div>\n' % filename + html
+    return tatlrt.safe(html)
