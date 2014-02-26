@@ -27,6 +27,12 @@ class ExprSemantics(ExprParser.ExprParser):
         for filt in ast.filter or []:
             result = IR.Part(fmt, fmt, filt, result)
         return result
+        
+    def callfilter(self, ast):
+        return IR.Filt('callfilt', ast)
+
+    def exprfilter(self, ast):
+        return IR.Filt('exprfilt', ast)
 
     def setif(self, ast):
         n = ast.var
@@ -78,7 +84,7 @@ class ExprSemantics(ExprParser.ExprParser):
     def map(self, ast):
         if ast == ['{', '}']:
             return IR.Expr([], '{}')
-        return self._join_with_star(ast, '{%(0)s}', ', ', 'merge(%(0)s)')
+        return self._join_with_star(ast, '{%s}', ', ', 'merge(%(0)s)')
 
     def member(self, ast):
         key = repr(str(ast.nkey)) if ast.nkey else ast.skey
@@ -101,7 +107,7 @@ class ExprSemantics(ExprParser.ExprParser):
 
     def comp(self, ast):
         if len(ast) == 1:
-            return IR.Part('bool(%(0)s)', 'bool(%(0)s)', ast[0])
+            return IR.Part('bool(%(0)s)', 'tatlrt.bool(%(0)s)', ast[0])
         else:
             # ast is arg, op, arg2, op, arg3 etc
             args = ast[::2]
@@ -154,7 +160,7 @@ class ExprSemantics(ExprParser.ExprParser):
 
     def list(self, ast):
         if ast == ['[', ']']: return IR.Expr([], '[]')
-        return self._join_with_star(ast, '[%(0)s]', '+', '')
+        return self._join_with_star(ast, '[%s]', '+', '')
     
     def _join_with_star(self, ast, paren, join, outer=''):
         parts = []
@@ -162,13 +168,13 @@ class ExprSemantics(ExprParser.ExprParser):
         for p in ast:
             if isinstance(p, IR.StarExp):
                 if expr:
-                    parts.append(IR.Part(paren, paren, IR.List(expr)))
+                    parts.append(IR.List(expr, paren=paren))
                     expr = []
                 parts.append(p)
             else:
                 expr.append(p)
         if expr:
-            parts.append(IR.Part(paren, paren, IR.List(expr)))
+            parts.append(IR.List(expr, paren=paren))
         if len(parts) == 1:
             parts = parts[0]
         else:
@@ -179,7 +185,7 @@ class ExprSemantics(ExprParser.ExprParser):
         return parts
 
     def call(self, ast):
-        return IR.Part('%(0)s(%(1)s)', '%(0)s(%(1)s)', ast.fn, IR.List(ast.arg or []))
+        return IR.Call(ast.fn, ast.arg or [])
 
     def PYEXPR(self, ast):
         py_code = ''.join(ast[1:-1])

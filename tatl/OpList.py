@@ -122,8 +122,8 @@ class Part(BasePart):
             self.Code = partkw.pop('Code')
         for k, v in list(enumerate(parts)) + partkw.items():
             self.add(v)
-            pyfrags[str(k)] = v.py
-            jsfrags[str(k)] = v.js
+            pyfrags[str(k)] = v.code('py')
+            jsfrags[str(k)] = v.code('js')
         self.py = pyfmt % pyfrags
         self.js = jsfmt % jsfrags
         self.__dict__.update(partkw)
@@ -146,12 +146,18 @@ class ArgPart(BasePart):
         return self.Code(fmt % d)
     
 class List(BasePart):
-    def __init__(self, partlist, join=', '):
+    def __init__(self, partlist, join=', ', paren='%s'):
         BasePart.__init__(self)
         self.partlist = partlist
+        self.join = join
+        self.paren = paren
         map(self.add, partlist)
-        self.py = join.join(p.py for p in partlist)
-        self.js = join.join(p.js for p in partlist)
+        
+    def code(self, target):
+        return self.paren % self.join.join(
+            p.code(target) 
+            for p in self.partlist
+        )
 
 class Lvar(BasePart):
     def __init__(self, lvar):
@@ -193,9 +199,9 @@ class Wrap(BasePart):
     def __init__(self, part):
         BasePart.__init__(self)
         self.add(part)
-        self.py = part.py
-        self.js = part.js
         self.part = part
+    def code(self, target):
+        return self.part.code(target)
 
 class Out:
     # mixin to namedtuples

@@ -383,6 +383,24 @@ def _ctx(name):
     c = _Context(name)
     return c, c.quote, c.emit
 
+class _NS: pass
+callfilt = _NS()
+exprfilt = _NS()
+
+def _filter(fn):
+    # define a filter
+    wrapped = lambda inner:(lambda *args, **kw: fn(inner(*args, **kw)))
+    setattr(callfilt, fn.__name__, wrapped)
+    setattr(exprfilt, fn.__name__, fn)
+
+@_filter
+def trim(s):
+    "A filter"
+    return s.strip()
+    
+def unsafe(s):
+    "A filter"
+
 def main():
     import sys as _sys
     for arg in _sys.argv[1:]:

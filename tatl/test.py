@@ -1,23 +1,29 @@
-from tatl import ExprParser, ExprSemantics
+from tatl import ExprParser, ExprSemantics, Compiler
 import os, sys, json
+from contextlib import contextmanager
+import traceback
 
-TESTS = 'grammar/test.txt'
-EXPECT = 'grammar/test.expect.json'
+G_TESTS = 'grammar/test.txt'
+G_EXPECT = 'grammar/test.expect.json'
 RULE = 'attrs'
+
+TESTDIR = 'tests/'
+OUT = 'tests/out/'
+EXPECT = 'tests/expect/'
 
 def test_grammar(update=0):
     parser = ExprParser.ExprParser(
         parseinfo=True,
         semantics=ExprSemantics.ExprSemantics()
     )
-    if os.path.exists(EXPECT):
-        expect = json.load(open(EXPECT))
+    if os.path.exists(G_EXPECT):
+        expect = json.load(open(G_EXPECT))
     else:
         assert update, "Missing %s -- run in update mode (-u)" % EXPECT
         expect = {}
     updated = {}
     fail = 0
-    for line in open(TESTS):
+    for line in open(G_TESTS):
         line = line.rstrip()
         try:
             ast = parser.parse(line, rule_name=RULE)
@@ -27,7 +33,6 @@ def test_grammar(update=0):
                 out = repr(ast)
         except:
             print 'FAILURE:', line
-            import traceback
             traceback.print_exc()
             fail += 1
         else:
@@ -42,20 +47,103 @@ def test_grammar(update=0):
                 updated[line] = out
             else:
                 updated[line] = expect[line]
-    if update and updated:
-        with open(EXPECT, 'w') as f:
+    if update and updated != expect:
+        with open(G_EXPECT, 'w') as f:
             json.dump(updated, f, indent=4, sort_keys=True)
-        print "Wrote", EXPECT
+        print "Wrote", G_EXPECT
     else:
         assert not fail, "%d failures" % fail
+
+class Case:
+    def __init__(self, file):
+        self.file = file
+        self.path = os.path.join(TESTDIR, file)
+        base = os.path.splitext(file)[0]
+        self.outbase = os.path.join(OUT, base)
+        self.expectbase = os.path.join(EXPECT, base)
+        
+    def read(self):
+        return read(self.path)
+        
+    def out(self, suffix, output, compare=True, update=False):
+        outf = self.outbase+suffix
+        with open(outf, 'w') as f:
+            f.write(output)
+        if compare:
+            expectf = self.expectbase+suffix
+            expect = read(expectf)
+            if output == expect:
+                pass
+            elif update:
+                with open(expectf, 'w') as f:
+                    f.write(output)
+                print "Wrote", expectf
+            else:
+                raise AssertionError("%s != %s" % (outf, expectf))
+        return outf
+
+def read(filename, default=''):
+    try:
+        f = open(filename)
+        data = f.read()
+        f.close()
+        return data
+    except Exception, e:
+        return default
+
+def test_tatl():
+    if not os.path.exists(OUT): os.makedirs(OUT)
+    if not os.path.exists(EXPECT): os.makedirs(EXPECT)
+    tests = [Case(f) for f in os.listdir(TESTDIR) if f.endswith('.html')]
+    for test in tests:
+        yield runtest, test
+
+def runtest(test, update=False, verbose=False):
+    inp = test.read()
+    if verbose:
+        print inp
+    py = Compiler.compile(inp, test.file, out='py')
+    test.out('.py', py, False)
+    pyrun = runpy(py).rstrip() + '\n'
+    pyout = test.out('.py.html', pyrun, True, update)
+    js = Compiler.compile(inp, test.file, out='js')
+    test.out('.js', js, False)
+    jsrun = runjs(js).rstrip() + '\n'
+    jsout = test.out('.js.html', jsrun, True, update)
+    if pyrun != jsrun: 
+        print "WARNING: %s and %s output should match" % (pyout, jsout)
+        print "diff", pyout, jsout
+        os.system("diff %s %s" % (pyout, jsout))
+    if verbose: 
+        print "head %s.*" % test.outbase
+        
+def runpy(pycode):
+    try:
+        d = {}
+        exec pycode in d, d
+        return d['html'](a='a', b=[1, 2], c=1, d={'a':'AA', 'b': [1,2,3]})
+    except Exception, e:
+        traceback.print_exc()
+        return '<exception: %s>' % e
+
+def runjs(jscode):
+    with open('_tmp.js', 'w') as f:
+        f.write(jscode+'\n\n')
+        f.write('''console.log(html.call({a:'a', b:[1,2], c:1, d:{'a':'AA', 'b': [1,2,3]}}))\n''')
+    return os.popen('node _tmp.js 2>&1').read()
 
 if __name__ == '__main__':
     print "Running tests... (pass -u to update)"
     import sys
+    sys.path.append('.')   # include tatlrt.py
     ExprSemantics.DEBUG = True
+    update = '-u' in sys.argv
+    verbose = '-v' in sys.argv
     try:
-        test_grammar('-u' in sys.argv)
+        for fn, test in test_grammar():
+            fn(test, update, verbose)
+        for fn, test in test_tatl():
+            fn(test, update, verbose)
     except Exception, e:
-        print e
+        traceback.print_exc()
         sys.exit(1)
-    

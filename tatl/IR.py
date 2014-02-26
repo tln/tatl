@@ -120,7 +120,7 @@ class Use(namedtuple('Use', 'set path arglist'), Out):
         if self.arglist is None:
             end = UseEndAuto(self.path)
         else:
-            end = UseEndArgs(self.path, self.arglist)
+            end = UseEndArgs(self.path, List(self.arglist))
 class For(namedtuple('For', 'set stmt'), Out):
     def addto(self, block):
         for stmt in self.set:
@@ -151,16 +151,27 @@ STAR_ARG = StarArg()
 class Path(BasePart):
     def __init__(self, paths):
         BasePart.__init__(self)
+        self.paths = paths
+        self.rvars = [paths[0]]
+
+    def code(self, target):
+        # Same for py and js
+        paths = self.paths[:]
         var = paths.pop(0)
-        self.rvars = [var]
         if not paths:
-            self.py = self.js = var
+            return var
         elif len(paths) == 1:
             path = paths[0]
-            self.js = self.py = '_.get1(%s, %r)' % (var, path)
+            return '_.get1(%s, %r)' % (var, path)
         else:
-            self.js = self.py = '_.get(%s, %r)' % (var, paths)
-            
+            return '_.get(%s, %r)' % (var, paths)
+
+class Call(ArgPart):
+    fields = ['fn', 'args']
+    pyfmt = jsfmt = '%(fn)s(%(args)s)'
+    def __init__(self, fn, args):
+        ArgPart.__init__(self, fn, List(args))
+
 class Args(BasePart):
     def __init__(self, args):
         BasePart.__init__(self)
@@ -204,6 +215,28 @@ class RangeExcl(ArgPart):
     pyfmt = 'tatlrt.range_excl(%(n)s, %(m)s)'
     jsfmt = 'tatlrt.range(%(n)s, %(m)s, false)'
 
+class Filt(BasePart):
+    # |filter calls are looked up in a special namespace (basically,
+    # tatlrt.filter). 
+    def __init__(self, type, expr):
+        BasePart.__init__(self)
+        self.type = type
+        if isinstance(expr, Path):
+            self.expr = self.make_lookup_expr(expr)
+        else:
+            assert isinstance(expr, Call)
+            assert isinstance(expr.fn, Path)
+            self.expr = Call(self.make_lookup_expr(expr.fn), expr.args)
+        self.add(self.expr)
+        
+    def make_lookup_expr(self, path):
+        # TODO These should be checked at compile time, eg now!
+        expr = '.'.join(['tatlrt', self.type] + path.paths)
+        return Expr([], expr, expr)
+        
+    def code(self, target):
+        return self.expr.code(target)
+        
 # --------
 class _Val(ArgExpr): fields = ['val']
 class _Var(ArgExpr): fields = ['var']
@@ -340,10 +373,7 @@ class EndAttr(ArgExpr):
     fields = ['attr']
     pyfmt = jsfmt = '_attrs[%(attr)r], _emit = _.pop()'
 class EndAttrs(BasePart):
-    py = js = '#end attrs'
-
-
-    
+    py = js = ''
 
 class UseStart(BasePart):                 # CS Call (use) start
     py = js = '_emit = _.push()'

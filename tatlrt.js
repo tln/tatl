@@ -33,6 +33,12 @@ var _proto = {
 		this.cur.push(s) 
 	},
 	q: function q(s) {
+		if (s == undefined || s == null) 
+			return ''
+		if (s instanceof Array) 
+			return s.map(this.q).join(' ')
+		if (typeof s == 'object')
+			return JSON.stringify(s)
 		return (''+s).replace(/[&<>"'\/]/g, function (c) { return ents[c] })
     },
 	push: function () { 
@@ -64,7 +70,13 @@ var _proto = {
 			v = v[p]
 		}
 		return v
+	},
+	buildtag: function (tag, attrs) {
+		return {tag: tag, attrs: attrs, content: this.pop(), __proto__: _tag}
 	}
+}
+var _tag = {
+	// no behavior (yet)
 }
 var ents = {
 	"&": "&amp;",
@@ -136,4 +148,32 @@ function forloop(obj, opts) {
 		r.push({post: true, __proto__: opts})
 	}
 	return r
+}
+
+function _wrap(fn) {
+    return function (f) {
+        return function () {
+            return fn(f.call({}, arguments))
+        }
+    }
+}
+exports.bool = function (v) {
+	// Coerce to true/false. lists, empty objects are false like python
+	switch (typeof v) {
+	case 'list': 
+		return v.length > 0;
+	case 'object':
+		if (v == null) return true;
+		for (key in v) return true;
+		return false;
+	default:
+		return !!v	
+	}
+}
+function trim(s) {return s.trim()}
+exports.exprfilt = {
+	trim: trim,
+}
+exports.callfilt = {
+	trim: _wrap(trim),
 }

@@ -12,7 +12,7 @@ from __future__ import print_function, division, absolute_import, unicode_litera
 from grako.parsing import * # @UnusedWildImport
 from grako.exceptions import * # @UnusedWildImport
 
-__version__ = '14.056.15.55.40'
+__version__ = '14.057.00.14.33'
 
 class ExprParser(Parser):
     def __init__(self, whitespace=None, nameguard=True, **kwargs):
@@ -98,7 +98,7 @@ class ExprParser(Parser):
             self._expr_()
             self.ast['result'] = self.last_node
         def block3():
-            self._filter_()
+            self._callfilter_()
             self.ast.add_list('filter', self.last_node)
         self._closure(block3)
 
@@ -132,6 +132,10 @@ class ExprParser(Parser):
     @rule_def
     def _name_(self):
         self._NAME_()
+
+    @rule_def
+    def _callfilter_(self):
+        self._filter_()
 
     @rule_def
     def _setExpr_(self):
@@ -278,9 +282,13 @@ class ExprParser(Parser):
         self._expr_()
         self.ast['expr'] = self.last_node
         def block1():
-            self._filter_()
+            self._exprfilter_()
             self.ast.add_list('filter', self.last_node)
         self._closure(block1)
+
+    @rule_def
+    def _exprfilter_(self):
+        self._filter_()
 
     @rule_def
     def _filter_(self):
@@ -292,9 +300,6 @@ class ExprParser(Parser):
                     self.ast['@'] = self.last_node
                 with self._option():
                     self._path_()
-                    self.ast['@'] = self.last_node
-                with self._option():
-                    self._string_()
                     self.ast['@'] = self.last_node
                 self._error('no available options')
 
@@ -737,6 +742,9 @@ class ExprSemantics(object):
     def name(self, ast):
         return ast
 
+    def callfilter(self, ast):
+        return ast
+
     def setExpr(self, ast):
         return ast
 
@@ -774,6 +782,9 @@ class ExprSemantics(object):
         return ast
 
     def filtexp(self, ast):
+        return ast
+
+    def exprfilter(self, ast):
         return ast
 
     def filter(self, ast):
