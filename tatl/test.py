@@ -1,5 +1,9 @@
+"""Tests -- run with nosetests, or from command line python -mtatl.test [-u]
+(The -u will update artifacts)
+"""
+
 from tatl import ExprParser, ExprSemantics, Compiler
-import os, sys, json
+import os, sys, json, glob
 from contextlib import contextmanager
 import traceback
 
@@ -7,7 +11,7 @@ G_TESTS = 'grammar/test.txt'
 G_EXPECT = 'grammar/test.expect.json'
 RULE = 'attrs'
 
-TESTDIR = 'tests/'
+TESTDIRS = ['tests/*.html', 'docs/slides/*.tatl']
 OUT = 'tests/out/'
 EXPECT = 'tests/expect/'
 
@@ -55,10 +59,10 @@ def test_grammar(update=0):
         assert not fail, "%d failures" % fail
 
 class Case:
-    def __init__(self, file):
-        self.file = file
-        self.path = os.path.join(TESTDIR, file)
-        base = os.path.splitext(file)[0]
+    def __init__(self, path):
+        self.path = path
+        self.file = os.path.split(path)[1]
+        base = os.path.splitext(self.file)[0]
         self.outbase = os.path.join(OUT, base)
         self.expectbase = os.path.join(EXPECT, base)
         
@@ -92,9 +96,11 @@ def read(filename, default=''):
         return default
 
 def test_tatl():
+    # yield our test cases so that nosetests sees them as individual cases
     if not os.path.exists(OUT): os.makedirs(OUT)
     if not os.path.exists(EXPECT): os.makedirs(EXPECT)
-    tests = [Case(f) for f in os.listdir(TESTDIR) if f.endswith('.html')]
+    for pattern in TESTDIRS:
+        tests = map(Case, glob.glob(pattern))
     for test in tests:
         yield runtest, test
 
@@ -140,8 +146,7 @@ if __name__ == '__main__':
     update = '-u' in sys.argv
     verbose = '-v' in sys.argv
     try:
-        for fn, test in test_grammar():
-            fn(test, update, verbose)
+        test_grammar(update)
         for fn, test in test_tatl():
             fn(test, update, verbose)
     except Exception, e:

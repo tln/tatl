@@ -75,6 +75,9 @@ class ExprSemantics(ExprParser.ExprParser):
             return '_'+ast
         return ast
 
+    def dname(self, ast):
+        return 'dot' if ast == '.' else ast
+
     def number(self, ast):
         return IR.Value(ast)
 

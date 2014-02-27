@@ -12,7 +12,7 @@ from __future__ import print_function, division, absolute_import, unicode_litera
 from grako.parsing import * # @UnusedWildImport
 from grako.exceptions import * # @UnusedWildImport
 
-__version__ = '14.057.00.14.33'
+__version__ = '14.057.15.56.56'
 
 class ExprParser(Parser):
     def __init__(self, whitespace=None, nameguard=True, **kwargs):
@@ -122,7 +122,7 @@ class ExprParser(Parser):
     def _arg_(self):
         with self._choice():
             with self._option():
-                self._name_()
+                self._dname_()
                 self.ast['@'] = self.last_node
             with self._option():
                 self._token('*')
@@ -132,6 +132,15 @@ class ExprParser(Parser):
     @rule_def
     def _name_(self):
         self._NAME_()
+
+    @rule_def
+    def _dname_(self):
+        with self._choice():
+            with self._option():
+                self._name_()
+            with self._option():
+                self._token('.')
+            self._error('expecting one of: .')
 
     @rule_def
     def _callfilter_(self):
@@ -252,11 +261,11 @@ class ExprParser(Parser):
 
     @rule_def
     def _lvar_(self):
-        self._name_()
+        self._dname_()
 
     @rule_def
     def _setif_(self):
-        self._name_()
+        self._dname_()
         self.ast['var'] = self.last_node
         with self._group():
             with self._choice():
@@ -740,6 +749,9 @@ class ExprSemantics(object):
         return ast
 
     def name(self, ast):
+        return ast
+
+    def dname(self, ast):
         return ast
 
     def callfilter(self, ast):
