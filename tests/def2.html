@@ -1,2 +1,9 @@
-<p def="name(arg) = expr">hello</p>
-<p def="name(arg)|trim">hello</p>
+<p def="name(arg) = attrs({id:'a12'}, .)">hello {arg}</p>
+
+	<do def="name2(arg)|wrap(trim)">
+		hello {arg}
+	</do>
+
+{name('John')}
+
+<pre>{name2('John')}</pre>

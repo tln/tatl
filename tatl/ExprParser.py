@@ -12,7 +12,7 @@ from __future__ import print_function, division, absolute_import, unicode_litera
 from grako.parsing import * # @UnusedWildImport
 from grako.exceptions import * # @UnusedWildImport
 
-__version__ = '14.057.15.56.56'
+__version__ = '14.059.20.57.39'
 
 class ExprParser(Parser):
     def __init__(self, whitespace=None, nameguard=True, **kwargs):
@@ -98,7 +98,7 @@ class ExprParser(Parser):
             self._expr_()
             self.ast['result'] = self.last_node
         def block3():
-            self._callfilter_()
+            self._filter_()
             self.ast.add_list('filter', self.last_node)
         self._closure(block3)
 
@@ -122,7 +122,7 @@ class ExprParser(Parser):
     def _arg_(self):
         with self._choice():
             with self._option():
-                self._dname_()
+                self._name_()
                 self.ast['@'] = self.last_node
             with self._option():
                 self._token('*')
@@ -131,24 +131,21 @@ class ExprParser(Parser):
 
     @rule_def
     def _name_(self):
-        self._NAME_()
-
-    @rule_def
-    def _dname_(self):
         with self._choice():
             with self._option():
-                self._name_()
+                self._NAME_()
             with self._option():
                 self._token('.')
             self._error('expecting one of: .')
 
     @rule_def
-    def _callfilter_(self):
-        self._filter_()
-
-    @rule_def
     def _setExpr_(self):
         self._lvar_()
+        self.ast['var'] = self.last_node
+        def block1():
+            self._filter_()
+            self.ast.add_list('filter', self.last_node)
+        self._closure(block1)
 
     @rule_def
     def _forExpr_(self):
@@ -261,11 +258,11 @@ class ExprParser(Parser):
 
     @rule_def
     def _lvar_(self):
-        self._dname_()
+        self._name_()
 
     @rule_def
     def _setif_(self):
-        self._dname_()
+        self._name_()
         self.ast['var'] = self.last_node
         with self._group():
             with self._choice():
@@ -342,20 +339,14 @@ class ExprParser(Parser):
         self._test_()
         self.ast['test'] = self.last_node
         with self._group():
-            with self._choice():
-                with self._option():
-                    self._token('?')
-                    self._expr_()
-                    self.ast['true'] = self.last_node
-                    with self._optional():
-                        self._token(':')
-                        self._expr_()
-                        self.ast['false'] = self.last_node
-                with self._option():
-                    self._token('?:')
-                    self._expr_()
-                    self.ast['false'] = self.last_node
-                self._error('no available options')
+            self._token('?')
+            with self._optional():
+                self._expr_()
+                self.ast['true'] = self.last_node
+            with self._optional():
+                self._token(':')
+                self._expr_()
+                self.ast['false'] = self.last_node
 
     @rule_def
     def _test_(self):
@@ -508,7 +499,7 @@ class ExprParser(Parser):
 
     @rule_def
     def _dottedPath_(self):
-        self._name_()
+        self._pname_()
         self.ast.add_list('@', self.last_node)
         def block1():
             self._token('.')
@@ -633,15 +624,20 @@ class ExprParser(Parser):
         with self._group():
             with self._choice():
                 with self._option():
-                    self._NAME_()
-                    self.ast['nkey'] = self.last_node
+                    self._number_()
                 with self._option():
-                    self._STRING_()
-                    self.ast['skey'] = self.last_node
+                    self._string_()
+                with self._option():
+                    self._barename_()
                 self._error('no available options')
+        self.ast['key'] = self.last_node
         self._token(':')
         self._expr_()
         self.ast['val'] = self.last_node
+
+    @rule_def
+    def _barename_(self):
+        self._name_()
 
     @rule_def
     def _NAME_(self):
@@ -749,12 +745,6 @@ class ExprSemantics(object):
         return ast
 
     def name(self, ast):
-        return ast
-
-    def dname(self, ast):
-        return ast
-
-    def callfilter(self, ast):
         return ast
 
     def setExpr(self, ast):
@@ -875,6 +865,9 @@ class ExprSemantics(object):
         return ast
 
     def member(self, ast):
+        return ast
+
+    def barename(self, ast):
         return ast
 
     def NAME(self, ast):

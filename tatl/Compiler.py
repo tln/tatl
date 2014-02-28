@@ -1,6 +1,6 @@
 import bs4
 import sys
-import json
+import json, copy, re
 import ExprParser, ExprSemantics
 from cgi import escape
 
@@ -26,8 +26,8 @@ def compile(s, source, out='py'):
     
 def main():
     for inp in sys.argv[1:]:
-        if not inp.endswith('.html'):
-            print "Expected .html file:", inp
+        if not inp.endswith(('.html', '.tatl')):
+            print "Expected .html or .tatl file:", inp
             continue
         html = open(inp).read()
         py = inp[:-5] + '.py'
@@ -35,6 +35,7 @@ def main():
         js = inp[:-5] + '.js'
         open(js, 'w').write(compile(html, inp, 'js'))
     
+
 class Compiler:
     def __init__(self, source):
         self.module = IR.Module(source)
@@ -122,37 +123,42 @@ class Compiler:
                         raise SyntaxError("Syntax error on <%s %s='%s'>" % (ts.name, attr, v))
                     getattr(self, '_process_'+attr)(ts, result)
     
-        if ts.build_tag:
-            ts.StartAttrs({})
-            for attr, val in attrs.items():
-                if isinstance(val, list):
-                    #multi-value attribute
-                    val = ' '.join(val)
-                ts.StartAttr()
-                self.parse_text(ts, val, False)
-                ts.EndAttr(attr)
-            ts.EndAttrs()
-        elif ts.emit_tag:
+        if ts.emit_tag:
             ts.EmitQText('<'+ts.name)
             for attr, val in attrs.items():
-                ts.EmitQText(' '+attr+'="')
-                if isinstance(val, list):
-                    #multi-value attribute
-                    val = ' '.join(val)
-                self.parse_text(ts, val)
-                ts.EmitQText('"')
+                self._emit_attr(ts.for_attr(attr), attr, val)
             ts.EmitQText('>')
         else:
             if attrs:
                 warn("Leftover attrs on <do>")
 
+    _boolable = re.compile('\s*\{[^{].*\}\s*$').match
+    def _emit_attr(self, ts, attr, val):
+        #import pdb
+        #pdb.set_trace()
+        # bool attributes have speical handling when the entire attribute is
+        # a substitution.
+        if isinstance(val, list):
+            val = ' '.join(val)
+        if ts.bool_attr:
+            print 'bool:', ts.name, attr, val
+            if not val:
+                ts.EmitQText(' '+attr)
+                return
+            elif self._boolable(val):
+                Top = self.parser.parse(val, rule_name='top')
+                if Top.boolable():
+                    ts.BoolAttr(attr, Top)
+                    return
+        ts.EmitQText(' '+attr+'="')
+        self.parse_text(ts, val)
+        ts.EmitQText('"')
+
     class _Tagstate:
         ret = None
-        dedent = 0
         if_pending = 0
         elide_pending = 0
-        build_tag = 0
-        attrs = None
+        bool_attr = False
         def __init__(self, name, id, block): 
             self.emit_tag = name != 'do'
             self.name = name
@@ -164,6 +170,16 @@ class Compiler:
             fn = lambda *args: cls(*args).addto(self.block)
             setattr(self, name, fn)
             return fn
+        def copy(self, **kw):
+            new = copy.copy(self)
+            new.__dict__.update(kw)
+            return new
+        def for_attr(self, attr):
+            # If the attribute needs special handling,
+            # return a new Tagstate. Otherwise return self
+            if attr in ('selected', 'checked', 'disabled'):
+                return self.copy(bool_attr=True)
+            return self
     def _finalize(self, ts):
         if ts.emit_tag:
             ts.EmitQText('</%s>' % ts.name)
@@ -186,11 +202,8 @@ class Compiler:
         ts.block = self.fn.block()
         ts.ret = True
 
-    def _process_set(self, ts, var):
-        ts.SetStart()
-        ts.SetEnd(var, IR.Value(ts.name))
-        ts.build_tag = True
-        ts.emit_tag = False
+    def _process_set(self, ts, obj):
+        obj.addto(ts.block)
         
     def _process_if(self, ts, test):
         test.addto(ts.block)
@@ -281,13 +294,10 @@ class Compiler:
         text = unicode(text)
         ts.EmitQText(text)
     
-    def parse_text(self, ts, text, quoted=1):
+    def parse_text(self, ts, text):
         result = []
         ix = text.find('{')
-        if quoted:
-            emit = lambda t: ts.EmitQText(escape(t.replace('}}', '}')))
-        else:
-            emit = lambda t: ts.EmitUText(t.replace('}}', '}'))
+        emit = lambda t: ts.EmitQText(escape(t.replace('}}', '}')))
         while ix > -1 and ix < len(text) - 2:
             if text[ix+1] == '{':
                 emit(text[:ix+1])
@@ -298,11 +308,8 @@ class Compiler:
                 emit(text[:ix])
                 text = text[ix:]
             Top = self.parser.parse(text, rule_name='top')
-            text = Top.rest
-            
-            Top.quoted = quoted
             Top.addto(ts.block)
-
+            text = Top.rest
             ix = text.find('{')
         emit(text)
         
@@ -565,6 +572,7 @@ def test():
         except Exception, e:
             import traceback
             traceback.print_exc()
+
 
 if __name__ == '__main__':
     main()

@@ -3,6 +3,7 @@ for="var1 in expr"
 for="expr"
 for="key, value in expr"
 for="var1 = expr; key in expr"
+for=". in expr"
 if="expr"
 if="var1 = expr; expr"
 def="name(arg, arg)"
@@ -10,6 +11,9 @@ def="name(arg, arg) |filter"
 def="name(*)"
 def="name(arg) = expr"
 set="var1"
+set="var1|trim"
+set="var1|module::foo"
+set="var1|bar"
 param="var1"
 param="var1, var1"
 use="template::html(expr, expr)"
@@ -38,6 +42,8 @@ use="var1 = expr; var12 = expr; template::html"
 {test ? value : value}
 {1 lt 2 ? 1}
 {1 lt x le y ?: 12}
+{ a? }
+{a ?: 1}
 {a == 2 ? "couple" : "few"}
 {"foo" ~ /bar/ ? yes}
 {a !~ /bar/ ? yes}
@@ -50,3 +56,5 @@ use="var1 = expr; var12 = expr; template::html"
 {[1,*a,1]}
 {[*a]}
 {{a:1,b:"2",*c,d:[1,2,3]}}
+{*:foo}
+{++:foo}

@@ -11,7 +11,7 @@ G_TESTS = 'grammar/test.txt'
 G_EXPECT = 'grammar/test.expect.json'
 RULE = 'attrs'
 
-TESTDIRS = ['tests/*.html', 'docs/slides/*.tatl']
+TESTDIRS = ['tests/*.html', 'docs/examples/*.html']
 OUT = 'tests/out/'
 EXPECT = 'tests/expect/'
 
@@ -107,13 +107,18 @@ def test_tatl():
 def runtest(test, update=False, verbose=False):
     inp = test.read()
     if verbose:
+        print '----', test.path
         print inp
     py = Compiler.compile(inp, test.file, out='py')
-    test.out('.py', py, False)
+    if verbose: print '--py:\n', py
+    c = test.out('.py', py, False)
     pyrun = runpy(py).rstrip() + '\n'
     pyout = test.out('.py.html', pyrun, True, update)
+    if verbose: print '->', c
     js = Compiler.compile(inp, test.file, out='js')
-    test.out('.js', js, False)
+    if verbose: print '--js:\n', js
+    c = test.out('.js', js, False)
+    if verbose: print '->', c
     jsrun = runjs(js).rstrip() + '\n'
     jsout = test.out('.js.html', jsrun, True, update)
     if pyrun != jsrun: 
@@ -135,20 +140,27 @@ def runpy(pycode):
 def runjs(jscode):
     with open('_tmp.js', 'w') as f:
         f.write(jscode+'\n\n')
-        f.write('''console.log(html.call({a:'a', b:[1,2], c:1, d:{'a':'AA', 'b': [1,2,3]}}))\n''')
+        f.write('''process.stdout.write(
+        html.call({a:'a', b:[1,2], c:1, d:{'a':'AA', 'b': [1,2,3]}}).toString()
+        )\n''')
     return os.popen('node _tmp.js 2>&1').read()
 
 if __name__ == '__main__':
     print "Running tests... (pass -u to update)"
     import sys
     sys.path.append('.')   # include tatlrt.py
+    sys.path.append('tests/out') # so that test can import each other
     ExprSemantics.DEBUG = True
-    update = '-u' in sys.argv
-    verbose = '-v' in sys.argv
+    args = sys.argv[1:]
+    update = '-u' in args
+    if update: args.remove('-u')
+    verbose = '-v' in args
+    if verbose: args.remove('-v')
     try:
         test_grammar(update)
         for fn, test in test_tatl():
-            fn(test, update, verbose)
+            if not args or test.path in args:
+                fn(test, update, verbose)
     except Exception, e:
         traceback.print_exc()
         sys.exit(1)

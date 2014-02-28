@@ -16,7 +16,7 @@ def debug(retry):
 class ExprSemantics(ExprParser.ExprParser):
     "Build Python code. Try to eval/compile early to catch issues as parse tree is built."
     def placeholder(self, ast):
-        return Placeholder(ast)
+        return IR.Placeholder(ast)
         
     def starexp(self, ast):
         return IR.StarExp(ast)
@@ -28,12 +28,6 @@ class ExprSemantics(ExprParser.ExprParser):
             result = IR.Part(fmt, fmt, filt, result)
         return result
         
-    def callfilter(self, ast):
-        return IR.Filt('callfilt', ast)
-
-    def exprfilter(self, ast):
-        return IR.Filt('exprfilt', ast)
-
     def setif(self, ast):
         n = ast.var
         fmt = '{0} = %(0)s {1} %(1)s'.format
@@ -57,8 +51,7 @@ class ExprSemantics(ExprParser.ExprParser):
 
     def path(self, ast):
         if ast.lookup:
-            fmt = '%(0)s[%(1)s]'
-            return IR.Part(fmt, fmt, ast.path, ast.lookup)
+            return IR.Lookup(ast.path, ast.lookup)
         return ast.path
 
     def pname(self, ast):
@@ -69,14 +62,13 @@ class ExprSemantics(ExprParser.ExprParser):
         return ast
 
     def name(self, ast):
+        if ast == '.':
+            return 'dot'
         if ast[:1] == '_':
             raise SyntaxError("names beginning with underscores are reserved")
         if ast in IR.RESERVED:
             return '_'+ast
         return ast
-
-    def dname(self, ast):
-        return 'dot' if ast == '.' else ast
 
     def number(self, ast):
         return IR.Value(ast)
@@ -90,8 +82,10 @@ class ExprSemantics(ExprParser.ExprParser):
         return self._join_with_star(ast, '{%s}', ', ', 'merge(%(0)s)')
 
     def member(self, ast):
-        key = repr(str(ast.nkey)) if ast.nkey else ast.skey
-        return IR.Part('%(0)s: %(1)s', '%(0)s: %(1)s', IR.Value(key), ast.val)
+        return IR.Part('%(0)s: %(1)s', '%(0)s: %(1)s', ast.key, ast.val)
+        
+    def barename(self, name):
+        return IR.Value(repr(name))
 
     def range(self, ast):
         arg1, op, arg2 = ast
@@ -146,7 +140,11 @@ class ExprSemantics(ExprParser.ExprParser):
         return IR.Part(pyfmt, jsfmt, ast.expr)
         
     def ternary(self, ast):
-        if ast.true:
+        if not (ast.true or ast.false):
+            # test ?
+            return ast.test
+        elif ast.true:
+            # test ? true  /  test ? true : false
             return IR.Part(
                 '%(true)s if %(test)s else %(false)s', 
                 '%(test)s ? %(true)s : %(false)s',
@@ -218,8 +216,9 @@ class ExprSemantics(ExprParser.ExprParser):
     def defExpr(self, ast):
         return IR.FuncDef(ast.name, ast.args, ast.result, ast.filter or [])
         
+    @debug
     def setExpr(self, ast):
-        return ast
+        return IR.Set(ast.var, ast.filter or [])
 
     def ifExpr(self, ast):
         return IR.If(ast.set or [], ast.test)

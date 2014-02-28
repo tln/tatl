@@ -2,10 +2,36 @@
 from cgi import escape as _escape
 import json, re
 from collections import namedtuple as _namedtuple
+from warnings import warn
+
+#abs = abs
+#all = all
+#any = any
+#apply = apply
+#max = max
+#min = min
+#reversed = reversed
+#round = round
+#sorted = sorted
+#str = str
+#sum = sum
+#zip = zip
+
+null = None
+false = False
+true = True
+bool = bool
+len = len
+__all__ = ['len', 'bool', 'true', 'false', 'null']
+
+def public(obj):
+    "Functions called directly from templates should be marked public"
+    __all__.append(obj.__name__)
+    return obj
 
 def range_incl(n, m):
     return range(n, m+1) if n < m else range(n, m-1, -1)
-    
+
 def range_excl(n, m):
     return range(n, m) if n < m else range(n-1, m-1, -1)
         
@@ -21,6 +47,7 @@ def _attr_other(o, q=_escape):
         return ' '.join([_escape(unicode(item)) for item in o])
     return q(unicode(o))
 
+@public
 class safe(unicode): pass
 _safe = lambda s: s
 
@@ -30,7 +57,11 @@ def _escape2(o, _e=_escape, _p=re.compile('''[<>&'"]''').search):
     return _e(o)
     
 def _escape(o):
-    return o.replace(u'&', u'&amp;').replace(u'<', u'&lt;').replace(u'>', u'&gt;')
+    return o.replace(u'&', u'&amp;')\
+            .replace(u'<', u'&lt;')\
+            .replace(u'>', u'&gt;')\
+            .replace(u'"', u'&quot;')\
+            .replace(u"'", u'&#39;')
 
 def _escape2(o):
     return unicode(o).replace(u'&', u'&amp;').replace(u'<', u'&lt;').replace(u'>', u'&gt;')
@@ -107,7 +138,7 @@ class _Context(object):
         
     def result(self):
         try:
-            return ''.join(map(''.join, self.estack))
+            return safe(''.join(map(''.join, self.estack)))
         except:
             print 'Error in estack!'
             return ''.join([''.join(map(unicode, l)) for l in self.estack])
@@ -122,7 +153,7 @@ class _Context(object):
 
     def load(self, name, path):
         o = __import__(name)
-        o = getattr(o, path.pop()) # error if first name not found
+        o = getattr(o, path.pop(0)) # error if first name not found
         return self.get(o, path)
 
     def get(self, o, path):
@@ -197,13 +228,14 @@ def _get1(o, p):
     try:
         return o[p]
     except (TypeError, KeyError, IndexError, AttributeError):
+        if not isinstance(p, basestring): return None
         try:
             return getattr(o, p, None)
         except Exception, e:
             pass
     except Exception, e:
         pass
-    warn("Unexpected error getting %s: %s", (path, e))
+    warn("Unexpected error getting %r[%r]: %s" % (o, p, e))
     return None
 
 _none = type(None)
@@ -300,6 +332,7 @@ class _Forloop(object):
             value = int(bool(value))
         return (cur or 0) + value
 
+@public
 def forloop(obj, opts={}):
     "Support forloop.counter, etc"
     if obj is None: 
@@ -384,29 +417,69 @@ def _ctx(name):
     return c, c.quote, c.emit
 
 class _NS: pass
-callfilt = _NS()
-exprfilt = _NS()
 
-def _filter(fn):
+@public
+def wrap(fn):
     # define a filter
-    wrapped = lambda inner:(lambda *args, **kw: fn(inner(*args, **kw)))
-    setattr(callfilt, fn.__name__, wrapped)
-    setattr(exprfilt, fn.__name__, fn)
+    return lambda inner:(lambda *args, **kw: fn(inner(*args, **kw)))
 
-@_filter
+@public
 def trim(s):
     "A filter"
     return s.strip()
-    
-def unsafe(s):
-    "A filter"
 
-def main():
-    import sys as _sys
-    for arg in _sys.argv[1:]:
-        if arg.endswith('.html'):
-            arg = arg[:-5]
-        load(arg)
-    
+TAG = re.compile('(\s*<)([a-zA-Z0-9_.:-]+)(.*?>)', re.DOTALL)
+def _findtag(s, fn):
+    start = m = TAG.match(s)
+    if not m: return s
+    count = 1
+    p = re.compile('<(/?)%s\s*' % start.group(2))
+    while count:
+        m = p.search(s, m.end())
+        if not m: return s
+        count += -1 if m.group(1) else 1
+    if s[m.end()+1:].strip(): return s
+    return fn(s, start, m)
+
+@public
+def contents(s):
+    """
+    >>> contents(u'   <title>HI</title>   ')
+    u'HI'
+    >>> contents(u'<p>1</p><p>2</p>')
+    u'<p>1</p><p>2</p>'
+    >>> contents(u'<p><p>1</p><p>2</p></p>')
+    u'<p>1</p><p>2</p>'
+    """
+    return _findtag(s, lambda s, start, end: s[start.end():end.start()])
+
+@public
+def tag(new, s):
+    """
+    >>> tag('h1', u'<title>HI</title>')
+    u'<h1>HI</h1>'
+    >>> tag('h1', u'foo:<title>HI</title>')
+    u'foo:<title>HI</title>'
+    """
+    def _replace(s, start, end):
+        pre, post = start.group(1, 3)
+        between = s[start.end():end.end(1)]  # and </
+        after = s[end.end():]   # > and whitespace
+        return '%s%s%s%s%s%s' % (pre, new, post, between, new, after)
+    return _findtag(s, _replace)
+
+@public
+def attrs(attdict, s):
+    """
+    >>> attrs({'id':'id123'}, u'<title>HI</title>')
+    u'<title id="id123">HI</title>'
+    """
+    def _replace(s, start, end):
+        attstr = ''.join(' %s="%s"' % (k, _escape(v)) for k, v in attdict.items())
+        e = start.end(2)
+        return s[:e]+attstr+s[e:]
+    return _findtag(s, _replace)
+
 if __name__ == '__main__':
-    main()
+    import doctest
+    doctest.testmod()

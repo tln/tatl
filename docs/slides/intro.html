@@ -10,21 +10,22 @@ resulting in less repetition and more natural indentation.
 
 <div style="float: right; width: 45%">
 	
-	<div class="filename">demo.py</div>
+<div class="filename">demo.py</div>
 <pre class="python">
 import intro
 print intro.html('World', ['Javascript', 'Python'])
 </pre>
 
-	<div class="filename">demo.js</div>
+<div class="filename">demo.js</div>
 <pre class="javascript">
 var intro = require('intro');
 process.stdout.write(
-	intro.html('World', ['Javascript', 'Python']) 
+    intro.html('World', ['Javascript', 'Python']).valueOf() 
 );
 </pre>
 
 </div>
+
 <div style="width: 55%">
-	{builder::as_code('examples/intro.html', 'intro.html')}
+  {builder::as_code('examples/intro.html', 'intro.html')}
 </div>

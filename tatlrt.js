@@ -21,10 +21,16 @@ exports.range = function (n,m,incl) {
 		if (incl) m++
 		for (var i = n; i < m; i++) { l.push(i) }
 	} else {
-		if (incl) n--
-		for (var i = m; i > n; i--) { l.push(i) }
+		if (!incl) n--
+		for (var i = n; i >= m; i--) { l.push(i) }
 	}
 	return l
+}
+
+exports.safe = function (s) {
+	s = new String(s)
+	s.__safe__ = true
+	return s
 }
 
 var _proto = {
@@ -35,11 +41,13 @@ var _proto = {
 	q: function q(s) {
 		if (s == undefined || s == null) 
 			return ''
+		if (s.__safe__)
+			return s
 		if (s instanceof Array) 
 			return s.map(this.q).join(' ')
-		if (typeof s == 'object')
+		if (typeof s == 'object' && !(s instanceof String))
 			return JSON.stringify(s)
-		return (''+s).replace(/[&<>"'\/]/g, function (c) { return ents[c] })
+		return (''+s).replace(/[&<>"']/g, function (c) { return ents[c] })
     },
 	push: function () { 
 		this.outs.push(this.cur = []) 
@@ -52,7 +60,7 @@ var _proto = {
 		for (var i = 0; i < this.outs.length; i++) {
 			this.outs[i] = this.outs[i].join('')
 		}
-		return this.outs.join('')
+		return exports.safe(this.outs.join(''))
 	},
 	elidestart: function () {
 		this.push()
@@ -67,12 +75,15 @@ var _proto = {
 	get: function (v, paths) {
 		for (p in paths) {
 			if (v == undefined || v == null) break
-			v = v[p]
+			v = v[paths[p]]
 		}
 		return v
 	},
 	buildtag: function (tag, attrs) {
 		return {tag: tag, attrs: attrs, content: this.pop(), __proto__: _tag}
+	},
+	load: function (module, paths) {
+		return this.get(require('./tests/out/'+module), paths)
 	}
 }
 var _tag = {
@@ -84,7 +95,6 @@ var ents = {
 	">": "&gt;",
 	'"': '&quot;',
 	"'": '&#39;',
-	"/": '&#x2F;'
 };
 _forloop = {
 	cycle: [],
@@ -111,7 +121,7 @@ _forloop = {
 	}
 }
 
-function forloop(obj, opts) {
+exports.forloop = function (obj, opts) {
 	var r = []
 	opts = opts || {}
 	opts.__proto__ = _forloop
@@ -150,13 +160,14 @@ function forloop(obj, opts) {
 	return r
 }
 
-function _wrap(fn) {
+exports.wrap = function (fn) {
     return function (f) {
         return function () {
-            return fn(f.call({}, arguments))
+            return fn(f.apply({}, arguments))
         }
     }
 }
+
 exports.bool = function (v) {
 	// Coerce to true/false. lists, empty objects are false like python
 	switch (typeof v) {
@@ -170,10 +181,49 @@ exports.bool = function (v) {
 		return !!v	
 	}
 }
-function trim(s) {return s.trim()}
-exports.exprfilt = {
-	trim: trim,
+
+exports.trim = function (s) {
+	return s.trim()
 }
-exports.callfilt = {
-	trim: _wrap(trim),
+
+var TAG = /(\s*<)([a-zA-Z0-9_.:-]+)((.|\n)*?>)/
+function _findtag(s, fn) {
+    start = m = TAG.exec(s)
+    if (!m || m.index > 0) return s
+    count = 1
+    p = new RegExp('<(/?)'+start[2]+'\s*', 'g')
+	p.lastIndex = start[0].length
+    while (count) {
+        m = p.exec(s)
+        if (!m) return s
+        count += m[1] ? -1 : 1
+	}
+    if (s.substring(p.lastIndex+1).trim()) return s
+    return fn(s, start, m)
+}
+
+exports.contents = function (s) {
+    return _findtag(s, function (s, start, end) { 
+		return s.slice(start[1].length, end.index) 
+	})
+}
+
+exports.tag = function (newtag, s) {
+    return _findtag(s, function (s, start, end) { 
+        return start[1] + newtag + start[3] 
+			+ s.slice(start[0].length, end.index+2) + newtag + s.substring(end.index+end[0].length)
+    })
+}
+
+// to facilitate internal quoting
+var _attr = exports._ctx('attr')
+exports.attrs = function (attdict, s) {
+    return _findtag(s, function (s, start, end) { 
+		var attstr = ''
+		for (var k in attdict) {
+			attstr += ' '+k+'="'+_attr.q(attdict[k])+'"'
+		}
+		var st = start[1] + start[2]
+        return st + attstr + s.substring(st.length)
+	})
 }
