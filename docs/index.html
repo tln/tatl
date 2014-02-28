@@ -31,11 +31,12 @@
         <html><body><h2>TATL: the Tag &amp; Attribute Template Language</h2>
 <h3>A templating system thats good for outputting HTML, for Javascript and Python.</h3>
 <p><mark>TATL</mark> templates are expressive, easy to learn, and cross easily from 
-server to client.
+server to client. <mark>TATL</mark> uses the natural block structure in your HTML code, 
+resulting in less repetition and more natural indentation.
 
 </p><p>Templates are precompiled into either Python or Javascript and then loaded as modules.
-
-</p><div style="float: right; width: 45%">
+</p>
+<div style="float: right; width: 45%">
 <div class="filename">demo.py</div>
 <pre class="python">
 import intro
@@ -267,7 +268,7 @@ The second file is called <code>common.html</code>, and would be compiled into a
 When it was outside the macro, it was a local var of the implicit html macro. Macros can 
 only access parameters that are passed in.
 
-</p><p>We call a local function via {function()} and function from another template via {template::function()}
+</p><p>We call a local function via <code>{function()}</code> and function from another template via <code>{template::function()}</code>
 
 <pre class="html tatl"><code>&lt;<span class="tag ">html</span>&gt;</code>
     <code>&lt;<span class="tag ">h1</span>&gt;</code>Hello <var>{name}</var><code>&lt;<span class="tag ">h1</span>&gt;</code>

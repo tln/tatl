@@ -7,8 +7,8 @@ The second file is called <code>common.html</code>, and would be compiled into a
 When it was outside the macro, it was a local var of the implicit html macro. Macros can 
 only access parameters that are passed in.
 
-<p>We call a local function via {{function()}} and function from another template via {{template::function()}}
+<p>We call a local function via <code>{{function()}}</code> and function from another template via <code>{{template::function()}}</code>
 
-{builder::as_code('slides/defs.tatl')}
+{builder::as_code('examples/defs.html')}
 
-{builder::as_code('slides/defs2.tatl', 'common.html')}
+{builder::as_code('examples/common.html', 'common.html')}

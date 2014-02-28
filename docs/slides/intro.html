@@ -2,9 +2,11 @@
 <h3>A templating system thats good for outputting HTML, for Javascript and Python.</h3>
 
 <p><mark>TATL</mark> templates are expressive, easy to learn, and cross easily from 
-server to client.
+server to client. <mark>TATL</mark> uses the natural block structure in your HTML code, 
+resulting in less repetition and more natural indentation.
 
 <p>Templates are precompiled into either Python or Javascript and then loaded as modules.
+</p>
 
 <div style="float: right; width: 45%">
 	
@@ -24,5 +26,5 @@ process.stdout.write(
 
 </div>
 <div style="width: 55%">
-	{builder::as_code('slides/intro.tatl', 'intro.html')}
+	{builder::as_code('examples/intro.html', 'intro.html')}
 </div>
