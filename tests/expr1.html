@@ -1,0 +1,8 @@
+<html>
+    <li>{a}
+    <li>{a ~ /^[0-9]+$/ ? 'number' : 'other'}
+    <li>{b = ['one', 'two', 'three']; c = {one: 'uno', two: 'dos', three: 'tres'}}
+    <li>{d = b[len(a)]; c[d]}
+    <li>{c.what}
+    <li>{c[a]}
+</html>

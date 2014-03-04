@@ -3,7 +3,7 @@ exports._ctx = function(quotestyle) {
 	return {
 		outs: [cur],
 		cur: cur,
-		qstack: [],
+		qstack: [true],
 		__proto__: _proto
 	}
 }
@@ -33,14 +33,28 @@ exports.safe = function (s) {
 	return s
 }
 
+function _keys(object) {
+    if (object.length != undefined) {
+        return exports.range(0, object.length, false)
+    } else {
+        var l = []
+        for (k in object) l.push(k)
+        l.sort()
+        return l
+    }
+}
+
 var _proto = {
 	emit: function (s) {
-		if (!s) this.qstack[0] = false
-		this.cur.push(s) 
+		this.cur.push(s)
 	},
 	q: function q(s) {
-		if (s == undefined || s == null) 
-			return ''
+        if (s === '') return ''
+        if (s === 0) return '0'
+		if (!s) { 
+			this.qstack[0] = false
+            return ''
+        }
 		if (s.__safe__)
 			return s
 		if (s instanceof Array) 
@@ -70,7 +84,9 @@ var _proto = {
 		return this.qstack.shift()
 	},
 	get1: function (v, path) {
-		return v == undefined || v == null ? v : v[path]
+		if (v == undefined || v == null) return v 
+        if (v[path] instanceof Function) return v[path].bind(v)
+        return v[path]
 	},
 	get: function (v, paths) {
 		for (p in paths) {
@@ -79,12 +95,16 @@ var _proto = {
 		}
 		return v
 	},
-	buildtag: function (tag, attrs) {
-		return {tag: tag, attrs: attrs, content: this.pop(), __proto__: _tag}
-	},
 	load: function (module, paths) {
 		return this.get(require('./tests/out/'+module), paths)
-	}
+	},
+    keys: _keys,
+    search: function (regex, object) {
+        if (typeof object == 'string' || object instanceof String) {
+            return regex.test(object)
+        }
+        return false
+    }
 }
 var _tag = {
 	// no behavior (yet)
@@ -105,57 +125,89 @@ _forloop = {
 	pre: false,
 	post: false,
 	
-	class_: function () {
+	classes: function () {
+        debugger;
         var l = []
         if (this.preclass && this.pre)
             l.push(this.preclass)
         if (this.firstclass && this.first)
             l.push(this.firstclass)
-        if (this.cycle)
+        if (this.cycle.length)
             l.push(this.cycle[this.counter0 % this.cycle.length])
         if (this.lastclass && this.last)
             l.push(this.lastclass)
         if (this.postclass && this.post)
             l.push(this.postclass)
         return l.join(' ')
-	}
+	},
+    
+    _updtotals: function (r) {
+        // Called on total row. 
+        // Update this.value based on preceding rows and any aggregators defined
+        // in this.total; return whether to include this total object in result set
+        var includerow = this.postclass
+        if (this.total) {
+            var values = []
+            for (var i = r.length && r[0].pre?1:0; i < r.length; i++) {
+                values.push(r[i].value)
+            }
+            debugger;
+            if (this.total instanceof Function) {
+                this.value = this.total(values)
+            } else {
+                this.value = {}
+                for (var key in this.total) {
+                    var val = this.total[key]
+                    if (val instanceof Function) {
+                        val = val(values.map(function (x){return x[key]}))
+                    }
+                    this.value[key] = val
+                }
+            }
+            includerow = true
+        }
+        if (this.totalkey) {
+            this.key = this.totalkey
+            includerow = true
+        }
+        return includerow
+    }
 }
-
+exports.sum = function (values) {
+    debugger;
+    var result = 0
+    for (var k in values) {
+        var v = values[k]
+        if (typeof v != 'number') return null
+        result += v
+    }
+    return result
+}
 exports.forloop = function (obj, opts) {
-	var r = []
+	var r = [], last = {}, cur, i = 0, keys = _keys(obj)
+    var keyadd = obj.length ? 1 : '' // .key should match .counter when looping over list
 	opts = opts || {}
 	opts.__proto__ = _forloop
+    total = {post: true, __proto__: opts}
 	if (opts.preclass) {
-		r.push({pre: true, __proto__: opts})
+		r.push(last = {pre: true, __proto__: opts})
 	}
-	if (typeof obj.length == 'undefined') {
-		var last, i = 0;
-		for (var key in obj) {
-			r.push(last = {
-				first: i == 0,
-				last: false,
-				counter0: i,
-				counter: i+1,
-				key: c,
-				value: obj[c],
-				__proto__: opts,
-			});
-			i++;
-		}
-		last.last = true
-	} else {
-		for (var i = 0; i < obj.length; i++) {
-			r.push({
-				counter0: i,
-				counter: i+1,
-				value: obj[i],
-				first: i == 0,
-				last: i == obj.length-1,
-			})
-		}
+	for (var key; key = keys[i], i < keys.length; i++) {
+		r.push(cur = {
+			counter0: i,
+			counter: i+1,
+            key: key+keyadd,
+			value: obj[key],
+			first: i == 0,
+			last: i == keys.length-1,
+            prev: last,
+            __proto__: opts
+		})
+        last = last.next = cur;
 	}
-	if (opts.postclass) {
-		r.push({post: true, __proto__: opts})
+    if (r.length) r[0].prev = null
+	if (total._updtotals(r)) {
+		r.push(last.next = total)
 	}
 	return r
 }
@@ -215,8 +267,8 @@ exports.tag = function (newtag, s) {
     })
 }
 
-// to facilitate internal quoting
-var _attr = exports._ctx('attr')
+var _attr = exports._ctx('attr')     // to facilitate internal quoting
+
 exports.attrs = function (attdict, s) {
     return _findtag(s, function (s, start, end) { 
 		var attstr = ''

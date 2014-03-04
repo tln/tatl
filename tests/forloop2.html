@@ -1,0 +1,38 @@
+<p for="forloop(1..10, {total: sum})">
+    <do if=".first"><else if=".post">=<else>+</do>
+    {.value}
+</p>
+
+{
+  data = [
+      {'name': 'Andersons', 'cars': 2, 'tvs': 1, 'kids': 0},
+      {'name': 'Brysons', 'cars': 0, 'tvs': 0, 'kids': 0},
+      {'name': 'Cransons', 'cars': 1, 'tvs': 2, 'kids': 0},
+      {'name': 'Davidsons', 'cars': 3, 'tvs': 3, 'kids': 0},
+      {'name': 'Elsons', 'cars': 2, 'tvs': 2, 'kids': 2},
+      {'name': 'Fergusons', 'cars': 2, 'tvs': 3, 'kids': 0},
+      {'name': 'Gleesons', 'cars': 2, 'tvs': 2, 'kids': 1},
+  ]
+}
+
+<table>
+<tr for="forloop(data, {
+        preclass:'pre', 
+        postclass:'post', 
+        total:{name: 'Total:', cars:sum, tvs:sum, kids:sum}
+    })"
+    class="{.classes()}">
+  <do if=".pre">
+      <th></th>
+      <th>Cars</th>
+      <th>TVs</th>
+      <th>Kids</th>
+  <else>
+      {. = .value}
+      <td>{.name}</td>
+      <td>{.cars}</td>
+      <td>{.tvs}</td>
+      <td>{.kids}</td>
+  </do>
+</tr>
+</table>

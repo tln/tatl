@@ -1,27 +1,32 @@
-<html use="common::html">
+<html use="layout::html">
+      {chide = common::chide; rating = common::rating}
     <title set>Hello {name}</title>
-    {*:lede}
-
-    <li>
-        <ul class="{.level}" for="notices">{.text}
-            <div class="more-info" if>
-                <a href="{.url}">Additional information</a>
-            </div>
-        <ul>
-    </li>
+    <body set>
+      {*:lede} <!-- Now lede is a function we can call -->
+      
+      <li>
+          <ul class="{.level}" for="notices">{.text}
+              <div class="more-info" if>
+                  <a href="{.url}">Additional information</a>
+              </div>
+          </ul>
+      </li>
     
-    {rating()}  
-    <footer set>{chide(number); result}</footer>
-    <do set="dontshow">{lede(result)}</do>
+      {rating()}
 
-    <!-- inlined -->
-    <footer set>{lede(chide(number))}</footer>
+      <!-- set to unused variable -->
+      <footer set>{chide('1')}</footer>
+      <do set="unused">{lede(footer)}</do>
 
-    <!-- filter -->
-    <footer set>{chide(number)|lede}</footer>
+      <!-- inlined -->
+      <footer set>{lede(chide('2'))}</footer>
 
-    <!-- hide expression result -->
-    <footer set>{chide(number)}</footer>
-    {lede(footer); ""}
+      <!-- hide expression result -->
+      <footer set>{chide('3')}</footer>
+      {lede(footer); ""}
 
+      <!-- filter is equivalent to inlined call -->
+      <footer set>{chide('4')|lede}</footer>
+
+  </body>
 </html>

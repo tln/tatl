@@ -1,15 +1,17 @@
 <html use="common::html">
     <title set>Hello {name}</title>
-    {chide(number)}
+    <body set>
+        {chide = common::chide(number); chide}
     
-    <li>
-        <ul class="{.level}" for="notices">{.text}
-            <div class="more-info" if>
-                <a href="{.url}">Additional information</a>
-            </div>
-        <ul>
-    </li>
+        <li>
+            <ul class="{.level}" for="notices">{.text}
+                <div class="more-info" if>
+                    <a href="{.url}">Additional information</a>
+                </div>
+            </ul>
+        </li>
     
-    {rating()}  
-    <footer set>{chide(number)}</footer>
+        {common::rating()}
+    </body>
+    <footer set>{chide}</footer>
 </html>

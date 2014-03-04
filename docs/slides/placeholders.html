@@ -4,9 +4,11 @@
 <ul>
 <li> Placeholders make a function. 
 <li> When called, they put the parameter back where the placeholder was created.
-<li> Star placeholders return their argument so they can be inlined
-<li> BTW -- there's another way to avoid showing an expression result
+<li> Star placeholders return their argument so they can be inlined. 
 </ul>
+
+Note that the inlined call is the same as a filter. Also, if there are multiple expressions in a
+substitution, only the last one is emitted.
 
 <p>Lets introduce <a href="#{pos.next.counter}">{pos.next.value.title ?: "this"}</a> next.
 

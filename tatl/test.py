@@ -2,10 +2,10 @@
 (The -u will update artifacts)
 """
 
-from tatl import ExprParser, ExprSemantics, Compiler
+from tatl import ExprParser, ExprSemantics, Compiler, front_matter
 import os, sys, json, glob
 from contextlib import contextmanager
-import traceback
+import traceback, cStringIO
 
 G_TESTS = 'grammar/test.txt'
 G_EXPECT = 'grammar/test.expect.json'
@@ -69,22 +69,37 @@ class Case:
     def read(self):
         return read(self.path)
         
-    def out(self, suffix, output, compare=True, update=False):
+    def out(self, suffix, output, compare=None, update=False):
+        if isinstance(output, str):
+            # wtf
+            try:
+                output = output.decode('ascii')
+            except:
+                # wtf*2
+                print self.path, suffix, 'Bogus data!'
+                raise
         outf = self.outbase+suffix
         with open(outf, 'w') as f:
-            f.write(output)
+            f.write(output.encode('utf8'))
         if compare:
             expectf = self.expectbase+suffix
-            expect = read(expectf)
+            expect = read(expectf).decode('utf8')
             if output == expect:
                 pass
             elif update:
                 with open(expectf, 'w') as f:
-                    f.write(output)
+                    f.write(output.encode('utf8'))
                 print "Wrote", expectf
             else:
-                raise AssertionError("%s != %s" % (outf, expectf))
+                return compare(outf, expectf)
         return outf
+        
+    def front_matter(self):
+        try:
+            return front_matter(self.path)
+        except:
+            print "WARNING: front matter failed", self.path
+            return {}
 
 def read(filename, default=''):
     try:
@@ -99,43 +114,164 @@ def test_tatl():
     # yield our test cases so that nosetests sees them as individual cases
     if not os.path.exists(OUT): os.makedirs(OUT)
     if not os.path.exists(EXPECT): os.makedirs(EXPECT)
+    tests = []
     for pattern in TESTDIRS:
-        tests = map(Case, glob.glob(pattern))
+        tests += map(Case, glob.glob(pattern))
+    runtest = Runner(False).runtest
     for test in tests:
         yield runtest, test
 
-def runtest(test, update=False, verbose=False):
-    inp = test.read()
-    if verbose:
-        print '----', test.path
-        print inp
-    py = Compiler.compile(inp, test.file, out='py')
-    if verbose: print '--py:\n', py
-    c = test.out('.py', py, False)
-    pyrun = runpy(py).rstrip() + '\n'
-    pyout = test.out('.py.html', pyrun, True, update)
-    if verbose: print '->', c
-    js = Compiler.compile(inp, test.file, out='js')
-    if verbose: print '--js:\n', js
-    c = test.out('.js', js, False)
-    if verbose: print '->', c
-    jsrun = runjs(js).rstrip() + '\n'
-    jsout = test.out('.js.html', jsrun, True, update)
-    if pyrun != jsrun: 
-        print "WARNING: %s and %s output should match" % (pyout, jsout)
-        print "diff", pyout, jsout
-        os.system("diff %s %s" % (pyout, jsout))
-    if verbose: 
-        print "head %s.*" % test.outbase
+class Runner:
+    def __init__(self, update):
+        self.update = update
         
-def runpy(pycode):
-    try:
-        d = {}
-        exec pycode in d, d
-        return d['html'](a='a', b=[1, 2], c=1, d={'a':'AA', 'b': [1,2,3]})
-    except Exception, e:
+    def log(self, *args):
+        pass
+        
+    def skipped(self, test):
+        self.log('Skipped:', test.file)
+        return True
+        
+    def start(self, test):
+        self.log('----', test.path)
+        
+    def warn(self, text):
+        if text in self.expected_warnings:
+            if self.expected_warnings.index(text) > 0:
+                self.log('Warning out of order:', text)
+            self.expected_warnings.remove(text)
+        else:
+            self.log('Unexpected warning:', text)
+        
+    def runpy_failed(self, test, py):
+        print "Error running", test.path
+        raise
+        
+    def runtest(self, test):
+        self.start(test)
+        
+        fm = test.front_matter()
+        if fm.get('test') == 'skip':
+            return self.skipped(test)
+        self.expected_warnings = fm.get('expect', {}).get('warn', [])
+        
+        inp = test.read()
+        self.log(inp)
+        pyrun = jsrun = None
+
+        py = None
+        try:
+            py = Compiler.compile(inp, test.file, out='py', warn=self.warn)
+            pyc = compile(py, test.file, 'exec')
+        except:
+            if py:
+                print py
+            self.compile_fail(inp, test, 'py')
+        else:
+            self.log('--py:\n', py)
+            c = test.out('.py', py, False)
+            try:
+                pyrun = runpy(py).rstrip() + '\n'
+            except:
+                pyrun = self.runpy_failed(test, py)
+            pyout = test.out('.py.html', pyrun, self.compare, self.update)
+            self.log('->', c)
+            
+        try:
+            js = Compiler.compile(inp, test.file, out='js', warn=self.warn)
+        except:
+            self.compile_fail(inp, test, 'js')
+        else:
+            self.log('--js:\n', js)
+            c = test.out('.js', js, False)
+            self.log('->', c)
+            jsrun = runjs(js).rstrip() + '\n'
+            jsout = test.out('.js.html', jsrun, self.compare, self.update)
+            
+        if pyrun and jsrun and pyrun != jsrun:
+            self.run_mismatch(pyout, jsout)
+        return self.done(test)
+    
+    def compile_fail(self, inp, test, target):
+        print 'Compile failed:', test.path, '->', target
+        raise
+    
+    def compare(self, outf, expectf):
+        # files do not match - return outf to keep processing
+        raise AssertionError("%s != %s" % (outf, expectf))
+    
+    def done(self, test):
+        for w in self.expected_warnings:
+            self.log('Expected warning:', w)
+        return True
+            
+    def run_mismatch(self, pyout, jsout):
+        self.log("WARNING: %s and %s output should match" % (pyout, jsout))
+        self.log("diff", pyout, jsout)
+        #os.system("diff %s %s" % (pyout, jsout))
+
+class VerboseRunner(Runner):
+    fail = mismatch = 0
+    
+    def start(self, test):
+        self.log('----', test.path)
+        self.fail = self.mismatch = 0
+    
+    def log(self, *args):
+        print ' '.join(map(unicode, args))
+
+    def compare(self, outf, expectf):
+        # files do not match - return outf to keep processing
+        self.log("Failed! %s != %s" % (outf, expectf))
+        self.fail = 1
+        return outf
+
+    def done(self, test):
+        self.log("head %s.*" % test.outbase)
+        return not (self.fail or self.mismatch)
+ 
+    def run_mismatch(self, pyout, jsout):
+        self.mismatch = 1
+        self.log("WARNING: %s and %s output should match" % (pyout, jsout))
+        self.log("diff", pyout, jsout)
+        self.log(os.popen("diff %s %s" % (pyout, jsout)).read().decode('utf8'))
+    
+    def compile_fail(self, inp, test, target):
+        print 'Compile failed:', test.path, '->', target
         traceback.print_exc()
-        return '<exception: %s>' % e
+        print '-----'
+        print inp
+        print '-----'
+        self.fail = True
+    
+class VerboseOnFailRunner(VerboseRunner):
+    logs = None
+    def log(self, *args):
+        if self.logs is None:
+            self.logs = []
+        self.logs.append(args)
+    
+    def start(self, test):
+        VerboseRunner.start(self, test)
+        print '----', test.path
+        self.logs = []
+    
+    def done(self, test):
+        r = VerboseRunner.done(self, test)
+        if not r:
+            def uni(s):
+                try: return unicode(s)
+                except: return repr(s)
+            for args in self.logs:
+                print ' '.join(map(uni, args))
+        else:
+            print '---> Test ok', test.file
+        return r
+
+def runpy(pycode):
+    d = {}
+    exec pycode in d, d
+    return d['html'](a='a', b=[1, 2], c=1, d={'a':'AA', 'b': [1,2,3]})
 
 def runjs(jscode):
     with open('_tmp.js', 'w') as f:
@@ -143,24 +279,45 @@ def runjs(jscode):
         f.write('''process.stdout.write(
         html.call({a:'a', b:[1,2], c:1, d:{'a':'AA', 'b': [1,2,3]}}).toString()
         )\n''')
-    return os.popen('node _tmp.js 2>&1').read()
+    return os.popen('node _tmp.js 2>&1').read().decode('utf8')
 
 if __name__ == '__main__':
     print "Running tests... (pass -u to update)"
+    io = cStringIO.StringIO()
+    
     import sys
     sys.path.append('.')   # include tatlrt.py
     sys.path.append('tests/out') # so that test can import each other
+    
     ExprSemantics.DEBUG = True
+    
     args = sys.argv[1:]
     update = '-u' in args
     if update: args.remove('-u')
     verbose = '-v' in args
-    if verbose: args.remove('-v')
+    if verbose: 
+        args.remove('-v')
+        runner = VerboseOnFailRunner(update)
+    else:
+        runner = Runner(update)
+    keepgoing = '-c' in args
+    if keepgoing: args.remove('-c')
+
     try:
         test_grammar(update)
+
+        fails = []
         for fn, test in test_tatl():
             if not args or test.path in args:
-                fn(test, update, verbose)
+                #import pdb
+                #pdb.set_trace()
+                ok = runner.runtest(test)
+                if ok: continue
+                fails.append(test.path)
+                if not keepgoing:
+                    break
+        for f in fails:
+            print f
     except Exception, e:
         traceback.print_exc()
         sys.exit(1)

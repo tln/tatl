@@ -1,9 +1,12 @@
 <h1>More shortcuts! </h1>
 
-<p>param and set will default to their tag names.
+<p><code>param</code> and <code>set</code> will default to their tag names.
 
-<p>param will set '.' to be the value of the parameter.
+<p><code>param</code> will set '.' to be the value of the parameter.
+  
+<p><code>set</code> without a name will also default to using the <code>contents</code> filter, which 
+will strip the surrounding tag.
 
 {builder::as_code('examples/moreshortcuts.html')}
 
-{builder::as_code('examples/moreshortcuts2.html')}
+{builder::as_code('examples/layout2.html')}

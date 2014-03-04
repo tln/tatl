@@ -6,7 +6,7 @@ RESERVED = ['var']
 # --------- Compiler API
 class Module:
     def __init__(self, source):
-        self.block = Block(IR())
+        self.block = Block(IR(), repr(self))
         self.functions = OrderedDict()
         self.imports = set()
         self.add_import('tatlrt')
@@ -35,8 +35,8 @@ class Function:
     def __init__(self, module, funcdef):
         self.module = module
         self.name = funcdef.name
-        self.code = Block(IR())
-        self.init = Block(IR())
+        self.init = Block(IR(), self.name.lvar+'@init')
+        self.code = Block(IR(), self.name.lvar+'@code')
         self.args = funcdef.args
         funcdef.addto(self.init)
             
@@ -45,7 +45,7 @@ class Function:
         map(self.args.add_arg, params)
     
     def block(self):
-        return Block(self.code.top)
+        return Block(self.code.top, self.name.lvar+'@block')
         
     def done(self):
         code = self.code.done()
@@ -82,6 +82,13 @@ class FuncDef(ArgPart):
         self.result = result
         self.filters = filters
         
+    def code(self, target):
+        code = ArgPart.code(self, target)
+        if target == 'js':
+            for arg in self.args.args:
+                code += '\n    %(arg)s = %(arg)s || this.%(arg)s' % {'arg': arg.lvar}
+        return self.Code(code)
+                
     def addto(self, block):
         block.top.add(self,
             FuncPreamble('attr')
@@ -113,12 +120,13 @@ class Use(namedtuple('Use', 'set path arglist'), Out):
             stmt.addto(block)
         
         block.top.add(UseStart())
-        block.bot.add(UseEnd0())
         
         if self.arglist is None:
             end = UseEndAuto(self.path)
         else:
             end = UseEndArgs(self.path, List(self.arglist))
+
+        block.bot.add(UseEnd0(), end)
 class For(namedtuple('For', 'set stmt'), Out):
     def addto(self, block):
         for stmt in self.set:
@@ -137,12 +145,15 @@ class Set(namedtuple('Set', 'var filters'), Out):
 
 class Top(namedtuple('Top', 'set exprs emit rest'), Out):
     def addto(self, block):
+        #import pdb
+        #pdb.set_trace()
+        
         self.add_setup(block)
-        if self.emit:
-            if self.emit.type == 'star':
-                expr.addto(block)
-            else:
-                EmitQExpr(self.emit).addto(block)
+        e = self.emit
+        if not e: return
+        if e.type != 'placeholder':
+            e = EmitQExpr(e)
+        e.addto(block)
         
     def add_setup(self, block):
         for stmt in self.set:
@@ -151,7 +162,7 @@ class Top(namedtuple('Top', 'set exprs emit rest'), Out):
             expr.addto(block)
 
     def boolable(self):
-        return self.emit.type != 'star' and not self.rest
+        return self.emit.type != 'placeholder' and not self.rest
 
 class BoolAttr(namedtuple('BoolAttr', 'attr top'), Out):
     def addto(self, block):
@@ -240,8 +251,9 @@ class Placeholder(BasePart):
     def __init__(self, ast):
         BasePart.__init__(self)
         op, self.name = ast
-        self.type = {'*':'star','++':'plusplus'}[op]
-        self.py = self.js = '%s = _.%s()' % (self.name, self.type)
+        self.method = {'*':'star','++':'plusplus'}[op]
+        self.py = '%s, _emit = _.%s()' % (self.name, self.method)
+        self.js = '%s = _.%s()' % (self.name, self.method)
         self.lvars = [self.name]
 
 
@@ -366,8 +378,9 @@ class For1(_Tmp):            # F1 for loop 1 var start (pass pair as arg)
 class For2(_Tmp):         # F2 for loop 2 var start (pass triple as arg)
     fields = ['n1', 'n2', 'expr', 'tmp']
     pyfmt = 'for %(n1)s, %(n2)s in _.items(%(expr)s):'
-    jsfmt = 'for (%(n1)s in (_tmp = %(expr)s)) { %(n2)s = _tmp[%(n1)s];'
-    Code = Indent  
+    jsfmt = '''for (var Ti = 0, Tk = _.keys(T = %(expr)s), Tn = Tk.length; Ti < Tn; Ti++) {
+    %(n2)s = T[%(n1)s = Tk[Ti]];'''.replace('T', '%(tmp)s')
+    Code = Indent
 class ForEnd(_End): pass               # FD for loop done
     
 
@@ -397,7 +410,9 @@ class CombineC(Peepholer):
     cls = EmitQText
     def optimize_run(self, ops):
         v = ''.join([op.val for op in ops])
-        if not v: return []
+        if not v:
+            # insert Pass??
+            return []
         ops[-1].val = v
         return ops[-1:]
 

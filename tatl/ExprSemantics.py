@@ -129,14 +129,10 @@ class ExprSemantics(ExprParser.ExprParser):
         return ast[1:-1]
 
     def regex(self, ast):
-        pyop, jsop = {
-            '~': ('is', ''),
-            '!~': ('is not', '!'),
-            '~!': ('is not', '!')
-        }[ast.op]
+        pyop, jsop = ('not ', '!') if '!' in ast.op else ('','')
         re = ast.re.replace('%', '%%')
-        pyfmt = 're.search(%r, %%(0)s) %s None' % (re, pyop)
-        jsfmt = '%s/%s/.test(%%(0)s)' % (jsop, re)
+        pyfmt = pyop + '_.search(%r, %%(0)s)' % re
+        jsfmt = jsop + '_.search(/%s/, %%(0)s)' % re
         return IR.Part(pyfmt, jsfmt, ast.expr)
         
     def ternary(self, ast):

@@ -1,3 +1,4 @@
+<!--{"test": "skip"}-->
 <html use="common::html">
     <title set>Hello {name}</title>
     {*:lede}
@@ -18,12 +19,18 @@
     </li>
     
     <!-- extreme shortcuts, extreme combo -->
-    <p for if use="wtf" def set param>hello!{.}</p>
+	<do def="extreme">
+
+    	<p for if use="wtf" def set param>hello!{.}</p>
+
+	</do>
+
+	<do def="expanded">
     
     <do param="p">
         <do set="."> <!-- implied by the param -->
             <do def="p(p)">
-                <do use="wtf(*)">
+                <do use="wtf(p)"> <!-- actual params depend on definition of wtf -->
                     <do set="."> <!-- implied by the use -->
                         <do set="p">
                             <do for=". in .">
@@ -42,6 +49,8 @@
         <!-- at this point, dot will be empty (def also removes content from stream) -->
     </do>
     <!-- finally, at this point, local variable p is set again, with the coup de farce: the local variable shadows the def! -->
+ 
+	</do>
     
     {rating()}  
     <footer set>{lede(chide(number))}</footer>

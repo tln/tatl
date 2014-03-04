@@ -1,17 +1,16 @@
-<html use="common::html">
-    <title set="footer|contents">Hello {name}</title>
-    {footer = chide(number); footer}
-    
-    <li>
-        <ul class="{.level}" for="notices">{.text}
-            <div class="more-info" if>
-                <a href="{.url}">Additional information</a>
-            </div>
-        <ul>
-    </li>
-    
-    {rating()}  
-    
-    <hr>
-    <footer set="footer|contents">{chide(number)}</footer>
+<html use="layout::html">
+    <do set="title">Hello {name}</do>
+    <do set="body">
+        {footer = common::chide(number); footer}
+
+        <li>
+          <ul class="{.level}" for="notices">{.text}
+              <div class="more-info" if>
+                  <a href="{.url}">Additional information</a>
+              </div>
+          </ul>
+        </li>
+
+        {common::rating()}  
+    </do>
 </html>

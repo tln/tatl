@@ -2,18 +2,23 @@ from collections import namedtuple, OrderedDict
 import re
 
 class Block:
-    def __init__(self, top):
+    def __init__(self, top, parent=None):
         self.top = top
         self.bot = OpList()
+        self.parent = parent
+        
+    def __repr__(self):
+        return '<block @%x parent=%r>' % (id(self), self.parent)
         
     def done(self):
+        #print 'Done:', repr(self)
         self.top.combine(self.bot)
         self.bot = None
         return self.top
         
     def __del__(self):
         if self.bot:
-            print 'Warning: Block.done() not called'
+            print 'Warning: Block.done() not called on', repr(self)
 
 class Compilable:
     def addto(self, block):
@@ -223,7 +228,9 @@ class Out:
         )
 
 #----------
-
+class Pass(BasePart):
+    js = '//pass'
+    py = 'pass'
 def join(fn):
     return lambda *args, **kw: '\n'.join(fn(*args, **kw))
     
@@ -265,7 +272,11 @@ class OpList:
             i += code.indent
     
     def add(self, *ops):
-        self.ops.extend(ops)
+        if not ops: return
+        cur = self.ops
+        if cur and cur[-1].Code.indent and ops[0].Code.dedent:
+            cur.append(Pass())
+        cur.extend(ops)
 
     def combine(self, other):
         self.ops.extend(other.ops)    
@@ -293,9 +304,15 @@ class Peepholer:
         ofs = 0
         for start, end in runs:
             new = self.optimize_run(self.ops[start-ofs:end-ofs])
-            if new is not None:
-                self.ops[start-ofs:end-ofs] = new
-                ofs += (end - start) - len(new)
+            if new is None: continue
+            start -= ofs
+            end -= ofs
+            if not new:
+                if start > 0 and self.ops[start-1].Code.indent and self.ops[end].Code.dedent:
+                    # insert a Pass, to avoid "if x:", "elif x:" which is syntax error in python
+                    new = [Pass()]
+            self.ops[start:end] = new
+            ofs += (end - start) - len(new)
                 
     def optimize_run(self, ops):
         pass

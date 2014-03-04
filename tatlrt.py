@@ -14,7 +14,6 @@ from warnings import warn
 #round = round
 #sorted = sorted
 #str = str
-#sum = sum
 #zip = zip
 
 null = None
@@ -69,8 +68,12 @@ def _escape2(o):
 def _escape3(o):
     return o.replace(u'&', u'&amp;').replace(u'<', u'&lt;')
     
+def _bool(b):
+    return 'true' if b else ''
+    
 class _Context(object):
     q_def = {
+        bool: _bool,
         int: unicode, 
         float: unicode, 
         safe: _safe,
@@ -109,6 +112,7 @@ class _Context(object):
             d = defaultdict(lambda:default, self.q_def)
             d.update(typesdict)
             d[None.__class__] = self._none
+            d[bool] = self._bool
             def quote(obj):
                 return d[obj.__class__](obj)
             quote.d = d
@@ -120,6 +124,10 @@ class _Context(object):
     def _none(self, arg):
         self.qstack[-1] = 1
         return ''
+    def _bool(self, arg):
+        if arg: return 'true'
+        self.qstack[-1] = 1
+        return ''
     def push(self):
         cur = self.estack[-1]
         self.estack.append([])
@@ -127,14 +135,14 @@ class _Context(object):
         return e
         
     def star(self):
-        return _Star(self.push(), self.quote)
+        return _Star(self.estack[-1], self.quote), self.push()
         
     def plusplus(self):
-        return _Plusplus(self.estack[-1])
+        return _Plusplus(self.estack[-1]), self.push()
         
     def pop(self):
         e = self.emit = self.estack[-2].append
-        return ''.join(self.estack.pop()), e
+        return safe(''.join(self.estack.pop())), e
         
     def result(self):
         try:
@@ -173,7 +181,7 @@ class _Context(object):
         result = func(*args)
         return result or ''
 
-    def applyargs(self, func, args):
+    def applyargs(self, func, *args):
         # try/except?
         result = func(*args)
         return result or ''
@@ -182,11 +190,11 @@ class _Context(object):
         if obj is None: 
             return ()
         try:
-            m = obj.iteritems
+            m = obj.items
         except AttributeError:
             return ((x+1, y) for x, y in enumerate(obj))
         else:
-            return m()
+            return sorted(m())
 
     def iter(self, obj):
         d = self.quote.d
@@ -217,12 +225,10 @@ class _Context(object):
         else:
             return (d[obj.__class__](obj) for obj in obj)
 
-    def buildtag(self, tag, attrs):
-        contents, emit = self.pop()
-        return Tag(tag, attrs, contents), emit
-
-class Tag(_namedtuple('Tag', 'tag attrs contents')):
-    pass
+    def search(self, pattern, object):
+        if isinstance(object, basestring):
+            return re.search(pattern, object) is not None
+        return False
 
 def _get1(o, p):
     try:
@@ -263,8 +269,7 @@ class _Forloop(object):
         self.preclass = preclass
         self.postclass = postclass
 
-    @property
-    def class_(self):
+    def classes(self):
         l = []
         if self.preclass and self.pre:
             l.append(self.preclass)
@@ -291,65 +296,26 @@ class _Forloop(object):
         next.prev = self
         return next
 
-    @property
-    def current(self):
-        if self.post:
-            return self.sum
-        return self._proxy(self.value, self._store, ())._value()
-
-    class _proxy:
-        def __init__(self, o, store, path=()):
-            self._o = o
-            self._store = store
-            self._path = path
-
-        def _value(self):
-            if isinstance(self._o, _simple):
-                self._store(self._path, self._o)
-                return self._o
-            else:
-                return self
-
-        def __getitem__(self, p):
-            return self.__class__(_get1(self._o, p), self._store, self._path+(p,))._value()
-                
-        def __len__(self):
-            return len(self.value)
-
-    def _store(self, path, value):
-        if not path:
-            self.sum = self._add(value, self.sum)
-            return
-        if self.sum is None:
-            self.sum = {}
-        d = self.sum
-        for p in path[:-1]:
-            d = d.setdefault(p, {})
-        d[path[-1]] = self._add(value, d.get(path[-1]))
-        
-    def _add(self, value, cur=0):
-        if not isinstance(value, (int, long, float)):
-            value = int(bool(value))
-        return (cur or 0) + value
-
 @public
 def forloop(obj, opts={}):
     "Support forloop.counter, etc"
+    
+    #forloop [pre] should have counter = counter0 = key = value = null
     if obj is None: 
         return
     
     if isinstance(obj, basestring):
         obj = [obj]
         
+    agg = opts.pop('total', None)
+    agg = agg and Aggregator(agg)
+        
     result = _Forloop(len(obj), **opts)
-    if isinstance(obj, dict):
-        iter = obj.iteritems()
-    else:
-        iter = ((None, value) for value in obj)
     
     result.pre = bool(result.preclass)
     lastresult = None
-    for result.counter0, (result.key, result.value) in enumerate(iter):
+    for result.counter0, (result.key, result.value) in enumerate(_attr.items(obj)):
+        if agg: agg(result.value)
         if result.pre:
             yield result
             result.pre = False
@@ -360,11 +326,54 @@ def forloop(obj, opts={}):
     if lastresult:
         lastresult.next = None
         yield lastresult
-        if result.postclass:
+        if result.postclass or agg:
             result.prev = None
             result.post = True
-            result.value = result.sum
+            result.key = opts.get('totalkey')
+            result.value = agg and agg.value()
             yield result
+
+@public
+def sum(values, _builtin=sum):
+    try:
+        values = map(float, values)
+    except:
+        return None
+    return _builtin(values)
+
+class Aggregator:
+    def __init__(self, aggregators):
+        if callable(aggregators):
+            self.aggfn = aggregators
+            self.consts = self.aggfns = {}
+            self.has_aggs = True
+            self.values = []
+        else:
+            l = [{}, {}]
+            self.aggfn = None
+            self.aggfns = l[True]
+            self.consts = l[False]
+            for k, v in aggregators.items():
+                l[callable(v)][k] = v
+            self.has_aggs = bool(self.aggfns or self.consts)            
+            self.values = dict((k, []) for k in self.aggfns)
+    def __call__(self, value):
+        if not self.has_aggs: return
+        if self.aggfn:
+            self.values.append(value)
+        else:
+            for key in self.aggfns:
+                self.values[key].append(_get1(value, key))
+
+    def value(self):
+        if not self.has_aggs: 
+            return None
+        if self.aggfn:
+            return self.aggfn(self.values)
+        d = self.consts.copy()
+        for key, fn in self.aggfns.items():
+            d[key] = fn(self.values[key])
+        return d
 
 class _Star:
     def __init__(self, l, quote):
@@ -380,6 +389,7 @@ class _Star:
                 s = ' '+s
             self._sp = s[-1:] not in ' \n'
             self._l.append(s)
+        return s
 
     def __unicode__(self):
         return ''.join(self._l[self._len:])
@@ -389,6 +399,8 @@ class _Star:
         
     def __len__(self):
         return len(self._l) - self._len
+
+
 
 class _Plusplus:
     def __init__(self, l):
@@ -412,9 +424,12 @@ class _Plusplus:
     def __int__(self):
         return self.cur
     
+
 def _ctx(name):
     c = _Context(name)
     return c, c.quote, c.emit
+
+_attr = _Context('attr')
 
 class _NS: pass
 
@@ -430,6 +445,7 @@ def trim(s):
 
 TAG = re.compile('(\s*<)([a-zA-Z0-9_.:-]+)(.*?>)', re.DOTALL)
 def _findtag(s, fn):
+    if not isinstance(s, basestring): return s
     start = m = TAG.match(s)
     if not m: return s
     count = 1
@@ -451,7 +467,7 @@ def contents(s):
     >>> contents(u'<p><p>1</p><p>2</p></p>')
     u'<p>1</p><p>2</p>'
     """
-    return _findtag(s, lambda s, start, end: s[start.end():end.start()])
+    return safe(_findtag(s, lambda s, start, end: s[start.end():end.start()]))
 
 @public
 def tag(new, s):
@@ -466,7 +482,7 @@ def tag(new, s):
         between = s[start.end():end.end(1)]  # and </
         after = s[end.end():]   # > and whitespace
         return '%s%s%s%s%s%s' % (pre, new, post, between, new, after)
-    return _findtag(s, _replace)
+    return safe(_findtag(s, _replace))
 
 @public
 def attrs(attdict, s):
@@ -478,7 +494,7 @@ def attrs(attdict, s):
         attstr = ''.join(' %s="%s"' % (k, _escape(v)) for k, v in attdict.items())
         e = start.end(2)
         return s[:e]+attstr+s[e:]
-    return _findtag(s, _replace)
+    return safe(_findtag(s, _replace))
 
 if __name__ == '__main__':
     import doctest

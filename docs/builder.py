@@ -76,7 +76,8 @@ def as_code(path, filename=''):
         return '<code>&lt;%s&gt;</code>' % ' '.join(l)
 
     html = re.sub('<(/?)(\w+)(.*?)>', tag, html)
-    html = re.sub('({[^{}]+(?:{.*?}.*?)?})', '<var>\\1</var>', html)
+    html = re.sub('{{(.*?)}}', '<span class="quoted">{{<code>\\1</code>}}</span>', html)
+    html = re.sub('(?s)({[^<{}]+(?:{.*?}.*?)?})', '<var>\\1</var>', html)
     html = re.sub('<(!--.*?--)>', '<span class="comment">&lt;\\1&gt;</span>', html)
     html = '<pre class="html tatl">%s</pre>' % html
     if filename:

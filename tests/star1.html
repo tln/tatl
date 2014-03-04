@@ -1,0 +1,18 @@
+
+<div class="{*:cls}">
+  {data = [{type: 'error', title:'Hello'}, 
+           {type: 'info', title:'Info'}, 
+           {type: 'error', title:'Hello'}, 
+           {type: 'error', title:'Hello'}, 
+           {type: 'error', title:'Hello'}]
+  }
+  Errors: {++:errcount} Warnings: {++:warncount}
+  {*:toomanyissuetext}
+  <div for="data">
+    {errcount(.type == 'error' ? 1 : 0); warncount(.type == 'error' ? 1 : 0); cls(.type); ""}
+    <h2>{.title}</h2>
+    Foo
+  </div>
+  <p use="toomanyissuetext" if="4 ge errcount gt 1">There were some errors</p>
+  <p use="toomanyissuetext" if="errcount gt 3">FIX YOUR STUFF</p>
+</div>

@@ -1,0 +1,22 @@
+<html def="html(a)">
+  {a ?= 'hi'; b = {}}
+  {cases = {
+      a: a, 
+      blank: '', 
+      Null:null, 
+      False:false, 
+      zero:0, 
+      emptylist:[], 
+      emptymap: b, 
+      notdefined: b.notdefined
+      }
+  }
+  <table>
+      <tr><th>Case<th>If<th>If-Else</tr>
+      <tr for="typ, val in cases">
+          <td>{typ}</td>
+          <td if>*{val}</td>
+          <td if>:{val}<else>else</td>
+      </tr>
+  </table>
+</html>

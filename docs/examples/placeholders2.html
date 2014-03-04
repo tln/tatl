@@ -1,5 +1,13 @@
-<html use="common::html">
-    <title set>Hello {name}</title>
+<html>
+    {chide = common::chide; rating = common::rating}
+    {notices ?= [
+            {level: 'error', text: 'You have not completed your profile', url:'/profile'},
+            {level: 'error', text: 'No credit card on file!'},
+            {level: 'warning', text: 'Your trial will expire in 7 days'},
+            {level: 'info', text: "Don't forget to like us on Facebook!"}
+        ]
+    }
+    <title>Hello {name}</title>
     {*:lede}
 
     <li>
@@ -9,10 +17,11 @@
             <div class="more-info" if>
                 <a href="{.url}">Additional information</a>
             </div>
-        <ul>
-        <p use="lede" if="numwarn > 3">Multiple notices need your attention!</p>
+        </ul>
+        <p use="lede" if="numwarn ge 3">Multiple notices need your attention!</p>
     </li>
-    
-    {rating()}  
-    <footer set>{lede(chide(number))}</footer>
+
+    {rating()}
+
+    <footer>{lede(chide(number))}</footer>
 </html>
