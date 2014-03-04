@@ -234,8 +234,10 @@ exports.bool = function (v) {
 	}
 }
 
-exports.trim = function (s) {
-	return s.trim()
+function url(s) { return encodeURIComponent(s) }
+exports.filters = {
+    trim: function (s) { return s.trim() },
+    url: url, u: url,
 }
 
 var TAG = /(\s*<)([a-zA-Z0-9_.:-]+)((.|\n)*?>)/
@@ -251,7 +253,7 @@ function _findtag(s, fn) {
         count += m[1] ? -1 : 1
 	}
     if (s.substring(p.lastIndex+1).trim()) return s
-    return fn(s, start, m)
+    return exports.safe(fn(s, start, m))
 }
 
 exports.contents = function (s) {

@@ -85,22 +85,14 @@ class Compiler:
         return '.'
         
     def _default_def(self, ts):
-        return self._name_default(ts)+'(*)'
+        return ts.name+'(*)'
         
     def _default_param(self, ts):
-        return self._name_default(ts)
+        return 'inner' if ts.name == 'do' else ts.name
         
     def _default_set(self, ts):
-        return self._name_default(ts) + '|contents'
+        return 'inner' if ts.name == 'do' else ts.name + '|contents'
 
-    def _name_default(self, ts):
-        if ts.id and ts.name not in ['head', 'body']:
-            return ts.id
-        # check that id is a valid name
-        # check that name != 'do'
-        return ts.name
-    
-    
     def _check_attrs(self, attrs, ts):
         if self.firsttag:
             attrs.setdefault('def', "html(*)")
@@ -205,8 +197,7 @@ class Compiler:
         ts.ret = True
 
     def _process_set(self, ts, obj):
-        obj.addto(ts.block)
-        
+        obj.addto(ts.block)        
     def _process_if(self, ts, test):
         test.addto(ts.block)
         ts.if_pending = 1

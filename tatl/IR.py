@@ -3,6 +3,9 @@ from cgi import escape  # for pre-quoting
 
 RESERVED = ['var']
 
+def warn(*args):
+    print 'WARN:', args
+
 # --------- Compiler API
 class Module:
     def __init__(self, source):
@@ -39,7 +42,11 @@ class Function:
         self.code = Block(IR(), self.name.lvar+'@code')
         self.args = funcdef.args
         funcdef.addto(self.init)
-            
+
+    def argnames(self):
+        self.done()
+        return [a.lvar for a in self.args.args]
+        
     def add_params(self, params):
         #TODO check for duplicates
         map(self.args.add_arg, params)
@@ -48,6 +55,12 @@ class Function:
         return Block(self.code.top, self.name.lvar+'@block')
         
     def done(self):
+        if self.code is None:
+            # already called
+            return self.init.top
+            
+        # Done is called after all Module functions have been created.
+        # Optimize, create implicit parameters, let ops check.
         code = self.code.done()
         code.combine(self.init.bot)
         code.optimize()
@@ -57,9 +70,11 @@ class Function:
         for op in code.ops:
             if isinstance(op, FuncEnd):
                 break
+            op.check(warn, lvars, self.module.functions)
             for rvar in op.rvars:
                 if rvar not in lvars:
-                    InitLocal(rvar).addto(self.init)
+                    #InitLocal(rvar).addto(self.init)
+                    self.add_params([Lvar(rvar)])
                     hasvar.add(rvar)
                     lvars.add(rvar)
             lvars.update(op.lvars)
@@ -70,27 +85,10 @@ class Function:
         return self.init.done()
 
 # -------- Major constructs created by ExprSemantics
-class FuncDef(ArgPart):
-    fields = ['name', 'args']
-    Code = Indent
-    pyfmt = 'def %(name)s(%(args)s):'
-    jsfmt = 'function %(name)s(%(args)s) {'
-    def __init__(self, name, args, result, filters):
-        if args is None:
-            args = Args([STAR_ARG])
-        ArgPart.__init__(self, Lvar(name), args)
-        self.result = result
-        self.filters = filters
-        
-    def code(self, target):
-        code = ArgPart.code(self, target)
-        if target == 'js':
-            for arg in self.args.args:
-                code += '\n    %(arg)s = %(arg)s || this.%(arg)s' % {'arg': arg.lvar}
-        return self.Code(code)
-                
+class Def(namedtuple('Def', 'name args result filters'), Out):
     def addto(self, block):
-        block.top.add(self,
+        block.top.add(
+            FuncDef(self.name, self.args),
             FuncPreamble('attr')
             )
         if self.result:
@@ -172,13 +170,37 @@ class BoolAttr(namedtuple('BoolAttr', 'attr top'), Out):
             EmitQText(' '+self.attr),
             IfEnd()
         )
-# -------- Additional Semantics created constructs
+# -------- Additional constructs
 class StarExp(Wrap):
     type = 'starexp'
  
 class StarArg(BasePart):
     py = js = '*star*'
 STAR_ARG = StarArg()
+class Filt(BasePart):
+    # |filter calls are looked up in a special namespace, 
+    # tatlrt.filter.
+    def __init__(self, expr):
+        BasePart.__init__(self)
+        if isinstance(expr, (BuiltinPath, VarPath)):
+            self.expr = self.make_lookup_expr(expr)
+        elif isinstance(expr, Call) and isinstance(expr.fn, (BuiltinPath, VarPath)):
+            self.expr = Call(self.make_lookup_expr(expr.fn), expr.args)
+        else:
+            # ExtPath or Call with ExtPath
+            self.expr = expr
+        self.add(self.expr)
+
+    def make_lookup_expr(self, path):
+        import tatlrt
+        fn = tatlrt.filters.__dict__.get(path.paths[0])
+        if fn:
+            expr = '.'.join(['tatlrt', 'filters', fn.__name__] + path.paths[1:])
+            path = Expr([], expr, expr)
+        return path
+
+    def code(self, target):
+        return self.expr.code(target)
 
 def Path(paths):
     import tatlrt
@@ -186,8 +208,24 @@ def Path(paths):
         return BuiltinPath(paths)
     else:
         return VarPath(paths)
-
-class BuiltinPath(BasePart):
+class BasePath(BasePart):
+    def args(self, functions):
+        import inspect
+        try:
+            d = {}
+            exec 'import tatlrt' in d, d
+            func = eval(self.code('py'), d, d)
+            args, _, _, _ = inspect.getargspec(func)
+            if list in map(type, args):
+                # cant handle auto in this case
+                warn("%s args are not compatible with use=")
+                args = None
+        except:
+            warn("Can't find args for %r", self)
+            args = None
+        return args
+    
+class BuiltinPath(BasePath):
     def __init__(self, paths):
         BasePart.__init__(self)
         self.paths = paths
@@ -195,7 +233,7 @@ class BuiltinPath(BasePart):
     def code(self, target):
         return 'tatlrt.' + '.'.join(self.paths)
 
-class VarPath(BasePart):
+class VarPath(BasePath):
     def __init__(self, paths):
         BasePart.__init__(self)
         self.paths = paths
@@ -213,6 +251,21 @@ class VarPath(BasePart):
         else:
             return '_.get(%s, %r)' % (var, paths)
 
+
+
+    def args(self, functions):
+        fn = functions.get(self.paths[0])
+        if fn is None: return None
+        #import pdb
+        #pdb.set_trace()
+        return fn.argnames()
+
+class ExtPath(Expr, BasePath):
+    def __init__(self, module, path):
+        self.module = module
+        self.path = path
+        Expr.__init__(self, [], '_.load(%r, %r)' % (module, path))
+        
 class Lookup(ArgPart):
     fields = ['expr', 'key']
     pyfmt = jsfmt = '_.get1(%(expr)s, %(key)s)'
@@ -221,7 +274,8 @@ class Call(ArgPart):
     fields = ['fn', 'args']
     pyfmt = jsfmt = '%(fn)s(%(args)s)'
     def __init__(self, fn, args):
-        ArgPart.__init__(self, fn, List(args))
+        if not isinstance(args, List): args = List(args)
+        ArgPart.__init__(self, fn, args)
 
 class Args(BasePart):
     def __init__(self, args):
@@ -267,27 +321,45 @@ class RangeExcl(ArgPart):
     pyfmt = 'tatlrt.range_excl(%(n)s, %(m)s)'
     jsfmt = 'tatlrt.range(%(n)s, %(m)s, false)'
         
-# --------
+# -------- Bases/helpers for Ops
 class _Val(ArgExpr): fields = ['val']
 class _Var(ArgExpr): fields = ['var']
 class _Expr(ArgPart): fields = ['expr']
-
 class _End(BasePart):
     py = '# end'
     js = '}'
     Code = Dedent
 
+
+# -------- Emitting Ops
 class EmitQText(_Val):
     pyfmt = '_emit(%(val)r)'
     jsfmt = '_.emit(%(val)r);'
 
-class Filter(ArgPart):
-    fields = ['name', 'filt']
-    pyfmt = jsfmt = '%(name)s = %(filt)s(%(name)s)'
-    
+class _Emit(ArgPart):
+    fields = ['expr']
+class EmitQExpr(_Emit):             # QE Quoted Expression
+    pyfmt = '_emit(_q(%(expr)s))'
+    jsfmt = '_.emit(_.q(%(expr)s));'
+class EmitUExpr(_Emit):             # UE Unquoted Expression
+    pyfmt = '_emit(unicode(%(expr)s))'
+    jsfmt = '_.emit(%(expr)s);'
+# -------- Module/function Ops
 class ModPreamble(BasePart):
     py = '# -*- coding:UTF-8 -*-'
     js = ''
+class FuncDef(ArgPart):
+    fields = ['name', 'args']
+    Code = Indent
+    pyfmt = 'def %(name)s(%(args)s):'
+    jsfmt = 'function %(name)s(%(args)s) {'        
+    def code(self, target):
+        code = ArgPart.code(self, target)
+        if target == 'js':
+            for arg in self.args.args:
+                code += '\n    %(arg)s = %(arg)s || this.%(arg)s' % {'arg': arg.lvar}
+        return self.Code(code)
+                
 class FuncPreamble(ArgExpr):
     fields = ['context']
     pyfmt = '_, _q, _emit = tatlrt._ctx(%(context)r)'
@@ -320,19 +392,10 @@ class InitLvars(BasePart):  # SV Setup local vars
         if self.js:
             block.top.add(self)
 
-class _Emit(ArgPart):
-    fields = ['expr']
-class EmitQExpr(_Emit):             # QE Quoted Expression
-    pyfmt = '_emit(_q(%(expr)s))'
-    jsfmt = '_.emit(_.q(%(expr)s));'
-class EmitUExpr(_Emit):             # UE Unquoted Expression
-    pyfmt = '_emit(unicode(%(expr)s))'
-    jsfmt = '_.emit(%(expr)s);'
-#class _QV(EmitQ, _Var):              # QV Quoted local Var
-#    pyfmt = jsfmt = '_emit(_q(%(var)s))'
-#class _UV(EmitU, _Var):              # UV Unquoted local Var
-#    pyfmt = jsfmt = '_emit(%(var)s)'
-
+class Filter(ArgPart):
+    fields = ['name', 'filt']
+    pyfmt = jsfmt = '%(name)s = %(filt)s(%(name)s)' 
+# -------- If
 class IfStart(ArgPart):                 # IS If start
     fields = ['test']
     Code = Indent
@@ -362,6 +425,7 @@ class ElideEnd(BasePart):                 # SE Skip (elide) end
         )
         block.bot.add(IfEnd())
 
+# -------- For
 class _Tmp(ArgPart):
     tmp = 0
     def __init__(self, *args):
@@ -382,8 +446,7 @@ class For2(_Tmp):         # F2 for loop 2 var start (pass triple as arg)
     %(n2)s = T[%(n1)s = Tk[Ti]];'''.replace('T', '%(tmp)s')
     Code = Indent
 class ForEnd(_End): pass               # FD for loop done
-    
-
+# -------- Set
 class SetStart(BasePart):                 # LS Local (set) start
     py = '_emit = _.push()'
     js = '_.push()'
@@ -392,20 +455,45 @@ class SetEnd(ArgPart):
     pyfmt = '%(var)s, _emit = _.pop()'
     jsfmt = '%(var)s = _.pop()'
 
+# -------- Use
 class UseStart(BasePart):                 # CS Call (use) start
     py = js = '_emit = _.push()'
 class UseEnd0(BasePart):
-    py = 'dot, _emit = _.pop()'
-    js = 'dot = _.pop()'
-    lvars = ['dot']
-class UseEndAuto(ArgPart):
-    fields = ['expr']
-    pyfmt = '_emit(_.applyauto(%(expr)s, locals()))'
-    jsfmt = '*not implemented*'
+    py = 'inner, _emit = _.pop()'
+    js = 'inner = _.pop()'
+    def __init__(self):
+        BasePart.__init__(self)
+        self.lvars = ['inner']
+class UseEndAuto(BasePart):
+    def __init__(self, expr):
+        BasePart.__init__(self)
+        self.expr = expr
+        self.add(expr)
+        
+    def check(self, warn, lvars, functions):
+        self.args = self.expr.args(functions)
+        if not self.args:
+            # maybe this should just be an error.
+            warn("Could not find args for %s", self.expr)
+        else:
+            for arg in self.args:
+                if arg not in lvars:
+                    warn("Use arg %s not defined -- adding as parameter" % arg)
+                    self.rvars.append(arg)
+    
+    def code(self, target):
+        if self.args:
+            expr = Call(self.expr, [Expr([], a, a) for a in self.args])
+        else:
+            expr = Part('_emit(_.applyauto(%(0)s, locals()))', '*not implemented*', self.expr)
+        return expr.code(target)
+        
+            
 class UseEndArgs(ArgPart):
     fields = ['expr', 'callargs']
     pyfmt = jsfmt = '_emit(_.applyargs(%(expr)s, %(callargs)s))'
 
+# -------- Peepholers
 class CombineC(Peepholer):
     cls = EmitQText
     def optimize_run(self, ops):
@@ -480,8 +568,3 @@ class IR(OpList):
     ]
 
 
-if __name__ == '__main__':
-    ir = IR()
-    ir.DEF('foo', ['a'])
-    ir.SETUP('wtf')
-    print ir.join()

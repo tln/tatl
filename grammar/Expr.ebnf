@@ -30,7 +30,7 @@ attrs = 'def="' @defExpr '"'
 	| 'use="' @useExpr '"' 
 	| top ;
 
-defExpr = name:name [args:arglist] ['=' result:expr] {filter+:filter} ;
+defExpr = name:lvar [args:arglist] ['=' result:expr] {filter+:filter} ;
 	arglist = '(' [@+:arg {',' @+:arg} [',']] @+:')' ;
 	arg = @name | @'*' ;
 	name = NAME | '.';
@@ -50,10 +50,9 @@ top = '{' {set+:set ';'} (set+:set | ({exprs+:expr ';'} [emit:topemitexpr])) '}'
 	setif = var:name ('=?'|'?=') expr:expr ;
 
 	topemitexpr = placeholder | filtexp ;
-		filtexp = expr:expr {filter+:exprfilter} ;
-		exprfilter = filter ;
-		filter = '|' (  @call | @path ) ;
 		placeholder = @('*' | '++') ':' @name ;
+		filtexp = expr:expr {filter+:filter} ;
+		filter = '|' (  @call | @path ) ;
 
 
 	expr = ternary | range | simpleexpr;

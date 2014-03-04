@@ -243,6 +243,14 @@ class VerboseRunner(Runner):
         print inp
         print '-----'
         self.fail = True
+        
+    def runpy_failed(self, test, py):
+        print 'Runpy failed:', test.path,
+        traceback.print_exc()
+        print '-----'
+        print py
+        print '-----'
+        self.fail = True
     
 class VerboseOnFailRunner(VerboseRunner):
     logs = None

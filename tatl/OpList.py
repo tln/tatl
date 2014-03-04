@@ -29,6 +29,12 @@ class Op:
     def code(self, target):
         # Return a Code instance
         return ''
+    def check(self, warn, lvars, functions):
+        # check the expression/op
+        # lvars is the lvars up to this op in function.
+        # May add rvars on self; any rvars on the op will 
+        # be added as parameters after this call 
+        pass
         
 class Code(unicode):
     dedent = 0

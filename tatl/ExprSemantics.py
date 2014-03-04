@@ -21,6 +21,9 @@ class ExprSemantics(ExprParser.ExprParser):
     def starexp(self, ast):
         return IR.StarExp(ast)
 
+    def filter(self, ast):
+        return IR.Filt(ast)
+
     def filtexp(self, ast):
         result = ast.expr
         fmt = '%(0)s( %(1)s )'
@@ -47,7 +50,7 @@ class ExprSemantics(ExprParser.ExprParser):
         return self.dottedPath(ast)
 
     def externalPath(self, ast):
-        return IR.Expr([], '_.load(%r, %r)' % (ast.module, ast.path))
+        return IR.ExtPath(ast.module, ast.path)
 
     def path(self, ast):
         if ast.lookup:
@@ -210,7 +213,10 @@ class ExprSemantics(ExprParser.ExprParser):
         return p.buffer.text[p.endpos:]
         
     def defExpr(self, ast):
-        return IR.FuncDef(ast.name, ast.args, ast.result, ast.filter or [])
+        return IR.Def(ast.name, 
+            ast.args or IR.Args([IR.STAR_ARG]), 
+            ast.result, 
+            ast.filter or [])
         
     @debug
     def setExpr(self, ast):

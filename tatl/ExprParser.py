@@ -12,7 +12,7 @@ from __future__ import print_function, division, absolute_import, unicode_litera
 from grako.parsing import * # @UnusedWildImport
 from grako.exceptions import * # @UnusedWildImport
 
-__version__ = '14.059.20.57.39'
+__version__ = '14.063.17.46.22'
 
 class ExprParser(Parser):
     def __init__(self, whitespace=None, nameguard=True, **kwargs):
@@ -88,7 +88,7 @@ class ExprParser(Parser):
 
     @rule_def
     def _defExpr_(self):
-        self._name_()
+        self._lvar_()
         self.ast['name'] = self.last_node
         with self._optional():
             self._arglist_()
@@ -284,17 +284,27 @@ class ExprParser(Parser):
             self._error('no available options')
 
     @rule_def
+    def _placeholder_(self):
+        with self._group():
+            with self._choice():
+                with self._option():
+                    self._token('*')
+                with self._option():
+                    self._token('++')
+                self._error('expecting one of: ++ *')
+        self.ast['@'] = self.last_node
+        self._token(':')
+        self._name_()
+        self.ast['@'] = self.last_node
+
+    @rule_def
     def _filtexp_(self):
         self._expr_()
         self.ast['expr'] = self.last_node
         def block1():
-            self._exprfilter_()
+            self._filter_()
             self.ast.add_list('filter', self.last_node)
         self._closure(block1)
-
-    @rule_def
-    def _exprfilter_(self):
-        self._filter_()
 
     @rule_def
     def _filter_(self):
@@ -308,20 +318,6 @@ class ExprParser(Parser):
                     self._path_()
                     self.ast['@'] = self.last_node
                 self._error('no available options')
-
-    @rule_def
-    def _placeholder_(self):
-        with self._group():
-            with self._choice():
-                with self._option():
-                    self._token('*')
-                with self._option():
-                    self._token('++')
-                self._error('expecting one of: ++ *')
-        self.ast['@'] = self.last_node
-        self._token(':')
-        self._name_()
-        self.ast['@'] = self.last_node
 
     @rule_def
     def _expr_(self):
@@ -783,16 +779,13 @@ class ExprSemantics(object):
     def topemitexpr(self, ast):
         return ast
 
+    def placeholder(self, ast):
+        return ast
+
     def filtexp(self, ast):
         return ast
 
-    def exprfilter(self, ast):
-        return ast
-
     def filter(self, ast):
-        return ast
-
-    def placeholder(self, ast):
         return ast
 
     def expr(self, ast):

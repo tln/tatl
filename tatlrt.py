@@ -389,7 +389,7 @@ class _Star:
                 s = ' '+s
             self._sp = s[-1:] not in ' \n'
             self._l.append(s)
-        return s
+        return o
 
     def __unicode__(self):
         return ''.join(self._l[self._len:])
@@ -431,14 +431,26 @@ def _ctx(name):
 
 _attr = _Context('attr')
 
-class _NS: pass
+@apply
+@public
+class filters:
+    def _add(self, fn, _alias=re.compile('Alias: (\w+)')):
+        setattr(self, fn.__name__, fn)
+        for alias in _alias.findall(fn.__doc__):
+            setattr(self, alias, fn)
+
+@filters._add
+def url(s):
+    "Alias: u"
+    import urllib
+    return urllib.quote(s)
 
 @public
 def wrap(fn):
     # define a filter
     return lambda inner:(lambda *args, **kw: fn(inner(*args, **kw)))
 
-@public
+@filters._add
 def trim(s):
     "A filter"
     return s.strip()
