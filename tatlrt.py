@@ -21,12 +21,23 @@ false = False
 true = True
 bool = bool
 len = len
-__all__ = ['len', 'bool', 'true', 'false', 'null']
+__all__ = ['len', 'true', 'false', 'null']
 
 def public(obj):
     "Functions called directly from templates should be marked public"
     __all__.append(obj.__name__)
     return obj
+
+
+@apply
+@public
+class filters:
+    def _add(self, fn, _alias=re.compile('Alias: (\w+)')):
+        setattr(self, fn.__name__, fn)
+        for alias in _alias.findall(fn.__doc__ or ''):
+            setattr(self, alias, fn)
+        return fn
+
 
 def range_incl(n, m):
     return range(n, m+1) if n < m else range(n, m-1, -1)
@@ -46,7 +57,7 @@ def _attr_other(o, q=_escape):
         return ' '.join([_escape(unicode(item)) for item in o])
     return q(unicode(o))
 
-@public
+@filters._add
 class safe(unicode): pass
 _safe = lambda s: s
 
@@ -431,24 +442,11 @@ def _ctx(name):
 
 _attr = _Context('attr')
 
-@apply
-@public
-class filters:
-    def _add(self, fn, _alias=re.compile('Alias: (\w+)')):
-        setattr(self, fn.__name__, fn)
-        for alias in _alias.findall(fn.__doc__):
-            setattr(self, alias, fn)
-
 @filters._add
 def url(s):
     "Alias: u"
     import urllib
     return urllib.quote(s)
-
-@public
-def wrap(fn):
-    # define a filter
-    return lambda inner:(lambda *args, **kw: fn(inner(*args, **kw)))
 
 @filters._add
 def trim(s):
@@ -470,7 +468,7 @@ def _findtag(s, fn):
     return fn(s, start, m)
 
 @public
-def contents(s):
+def contents(inner):
     """
     >>> contents(u'   <title>HI</title>   ')
     u'HI'
@@ -479,34 +477,34 @@ def contents(s):
     >>> contents(u'<p><p>1</p><p>2</p></p>')
     u'<p>1</p><p>2</p>'
     """
-    return safe(_findtag(s, lambda s, start, end: s[start.end():end.start()]))
+    return safe(_findtag(inner, lambda s, start, end: s[start.end():end.start()]))
 
 @public
-def tag(new, s):
+def tag(tagname, attrs, inner):
     """
-    >>> tag('h1', u'<title>HI</title>')
+    >>> tag('h1', {}, u'HI')
     u'<h1>HI</h1>'
-    >>> tag('h1', u'foo:<title>HI</title>')
-    u'foo:<title>HI</title>'
+    >>> tag('h1', {}, u'H&I')
+    u'<h1>H&amp;I</h1>'
+    >>> tag('h1', None, safe(u'<title>HI</title>'))
+    u'<h1><title>HI</title></h1>'
+    >>> tag('h1', {'class': 'large'}, safe(u'foo:<title>HI</title>'))
+    u'<h1 class="large">foo:<title>HI</title></h1>'
     """
-    def _replace(s, start, end):
-        pre, post = start.group(1, 3)
-        between = s[start.end():end.end(1)]  # and </
-        after = s[end.end():]   # > and whitespace
-        return '%s%s%s%s%s%s' % (pre, new, post, between, new, after)
-    return safe(_findtag(s, _replace))
+    attstr = ''.join(' %s="%s"' % (k, _escape(v)) for k, v in sorted((attrs or {}).items()))
+    return safe(u'<%s>%s</%s>' % (tagname+attstr, _attr.quote(inner), tagname))
 
 @public
-def attrs(attdict, s):
+def attrs(attrs, inner):
     """
     >>> attrs({'id':'id123'}, u'<title>HI</title>')
     u'<title id="id123">HI</title>'
     """
     def _replace(s, start, end):
-        attstr = ''.join(' %s="%s"' % (k, _escape(v)) for k, v in attdict.items())
+        attstr = ''.join(' %s="%s"' % (k, _escape(v)) for k, v in attrs.items())
         e = start.end(2)
         return s[:e]+attstr+s[e:]
-    return safe(_findtag(s, _replace))
+    return safe(_findtag(inner, _replace))
 
 if __name__ == '__main__':
     import doctest

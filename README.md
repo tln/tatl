@@ -23,59 +23,63 @@ Extended attributes:
 
 	for="var in expr"
 		Repeats tag, with {var} now available elsewhere in tag contents.
-		Can use $var in other attributes of same tag. Cannot repeat on tag.
 	for="expr"
-		Same, var assumed to be {(_)} {.}
+		Same, var assumed to be . (dot).
 	for
-		Same, var and expr assumed to be . 
+		Same, var and expr assumed to be . (dot). 
 	for="key, value in expr"
-		When iterating over a dict. Fancier destructuring not possible.
+		When iterating over a map, gives key and value (sorted by key). When iterating over a list,
+        gives counter, value where counter is the 1-based index.
 	for="var = expr; var2 = expr; key in expr"
 		Set some variables before evaluating the expr
 				
 	if="expr"
-		If the expression is false, do not include or the tag or the content or execute any substitions within. Also allows 
-		<else> tag.
+		If the expression is false, do not include or the tag or the content or execute any substitions within. 
+        When <else> is present in tag, include the tag and content before the else if the expression is false, 
+        or the tag and content after the else if the expression is true.
 	if
-		If any variable substitutions are empty, elide this whole tag (this can be spelled elide or elide="elide").
+		If any variable substitutions are empty, elide this whole tag. Empty values are null and false. 
+        Also allows else as above.
 	if="var = expr; var2 = expr; expr"
 		Set some variables before evaluating the expr
 	
 	def="name(arg, arg)"
-		Define a macro. Calling the macro will return the tag and its contents. The tag won't be included in the output at this location.
-	def="name(arg, arg, arg='default') |filter"
-		Like python, name will be set to decorator1(decorator2(foo)). A primary use of decorators is caching.
+		Define a macro. Calling the macro will return the tag and its contents. The tag won't be included in the 
+        output at this location. Note that functions can be defined after they are called by a template. Functions 
+        do not have access to any variables defined thus far, only parameters.
+	def="name(arg, arg, arg='default') |filter1|filter2"
+		Like python decorators, name will be set to filter1(filter2(foo)). A primary use of filters is caching.
 	def="name()"
 		Macro with no args. You still have to call it.
 	def="name(*)"
-		Macro with args defined by param="".
+		Macro with args placeholder. Any variables defined by param="" or free variables (undefined variables) 
+        will become parameters.
 	def="name(arg) = expr"
-		Macro with result defined by expr. Can reference "Result" in expr, which is what would have been returned
+		Macro with result defined by expr. Can reference "." in expr, which is what would have been returned
 
-	set="var = expr; var2 = expr"
-		Defines some variables.
 	set="var"
-		Same as "var = Tag()". Tag() returns on object with keys for .name .attrs .contents
+		Sets variable to be the tag with all substitutions executed.
+	set="var|filter"
+		Sets var to be `filter(_tag_)`.
 	set 
-		Defines a variable named for the id="" or, for head and body tags, the tag name.
+		For `<do>` tag, same as set="inner". For other tags, same as set="_tagname_|contents"
 		
 	param="var"
-		Define a parameter, scoped to the nearest def= with (*). The parameter can be accessed anywhere 
+		Define a parameter, scoped to the nearest def=. The parameter can be accessed anywhere 
 		in the scope; even if the tag itself isnt included/processed due to an if=. Within the tag, the 
 		parameter can be accessed by {.}.
 	param
-		Defines a parameter named for the id="" or, for head and body tags, the tag name.
+		Defines a parameter with the tag name, or for the <do> tag, named "inner".
 	param="var, var"
 		Defines multiple paramters. {.} is not set.
 		
 	use="template::html(expr, expr)"
-		After processing all tags, call the given macro, passing in args from the current execution. The result
-		is then used in place of the current tag. If the result was a Tag() object, it's formatted.
+		Set "inner" to be the tag with all substitutions executed, then call the given macro, passing 
+        in arguments as specified. The result is then used in place of the current tag.
 	use="template::html"
 		Call the given macro, automatically finding parameters from local variables.
 	use="var = expr; var2 = expr; template::html"
-		Same as above, but with some variables already set.
-		
+		Same as above, but with some variables already set.		
 
 Variable substitution
 
@@ -97,12 +101,6 @@ Variable substitution
 				
 	{macro(var, var)}
 		Call macro
-		
-	{var = "value"}
-	{var = expr}
-		expression or assignment. Value is not inserted into doc
-	{var = expr; var}
-		Same, but then a value is inserted.
 	
 	{1...5}
 		The numbers 1 up to and including 5 ie inclusive range (1, 2, 3, 4, 5)
@@ -110,21 +108,43 @@ Variable substitution
 		The numbers 0 up to 5 ie exclusive range (0, 1, 2, 3, 4)
 		
 	{[var, "val", 3]}
-		A list of three values
+		A list of three values. Would be outputted with one space between contents, eg "var val 3".
 	{[var, "val", 3, *0..9]}
-		A list of three values with inline splice
+		A list of three values with inline splice.
+    {{name: var1, "a key": "value"}}
+        A map with keys "name" and "a key". Any value can be stored in a map; only numbers
+        and strings can be keys. Would be outputted in JSON format. 
 	{{name: var1, name2: "value", *foo, name3: "value"}}
-		A map, with inline splice
+		A map, with inline splice. This creates a new map (foo is not modified) where the keys
+        "name" and "name2" override the values in foo and foo overrides "name3".
 		
 	{expr |afilter}
-		Override the default quoting on the expression. 
+		After evaluating expression, look up the filter function and call it. If there is no filter 
+        function, look up a locally defined function.
+    {expr |module::func}
+        Look up func in module and call it.
 	
 	{test ? value1 : value2}
 		Ternary. Valid tests are a eq b, a ne b, a lt b, a lt b lt c, etc, (and le gt ge)
 		a ~ /regex/, and a truthy test, with just the expression. 
 	{test ? value1}
 		Ternary, value2 assumed to be empty
-	{test ?: value2} 
+	{expr ?: default} 
+        Use the value of expr or default if not defined.
+    {test ?}
+        Either true or false. tests are not allowed in other places where expressions are
+        allowed so this is useful to either do a boolean comparison elewhere or to coerce an
+        expression to true/false.
+		
+	{var = "value"}
+	{var = expr}
+		expression or assignment. Value is not inserted into doc
+	{var = expr; var}
+		Same, but then a value is inserted.
+        
+    {var ?= value}
+        Same as {var = var ?: value}
+     
 
 
 Special tags / quoting
@@ -158,18 +178,29 @@ Special tags / quoting
 
 Needed and Possible changes
 
-* IR /OpList -- lvars /rvars etc should be lazy per target like code(). Move all code out of ExprSemantics. Simplify the logic, there are may base classes.
+* IR /OpList -- lvars /rvars etc should be lazy per target like code(). Move all code out of ExprSemantics. Simplify the logic, there are too many base classes.
 * packaging... npm, pip?
 * The parser. bs4 + lxml adds <html><body><p> and loses line info. HTMLParsers() requires sax rewrite but seems more reliable  
 * More python versions... 3.4, maybe 2.6?
 * js - use string concatenation. Its miles faster on browsers.
 * py - Re-deploy peepholers
 * Babel? Whats the JS solution?
-* Do filters need to be special? Could we just get people to call {safe(expr)}? Could expr1|foo(*,expr2) be syntax for foo(expr1, expr2) or similar? 
+* Placeholders -- need fixes
+* any bool-expr -- boolean quantifiers
+* Expand front matter to use built-in value syntax, (which is basically JSON5). // and /* */ Comments
 
-Built in utils
-	forloop
-	trim
-	batch(value, linecount, fill_with=None)
-	dictsort
-	group
+Builtins
+    len(x) -- return length of list
+    true
+    false
+    null
+    sum(nums) -- return sum of list of numbers (null if any arent numbers)
+    forloop(iter, opts) -- swiss army knife of looping
+    contents(inner) -- strip outer tag
+    tag(name, attrs, inner) -- wrap with tag
+    attrs(attrmap, inner) -- add attributes to outer tag
+
+Built in filters
+    url
+    safe
+    trim

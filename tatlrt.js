@@ -262,11 +262,12 @@ exports.contents = function (s) {
 	})
 }
 
-exports.tag = function (newtag, s) {
-    return _findtag(s, function (s, start, end) { 
-        return start[1] + newtag + start[3] 
-			+ s.slice(start[0].length, end.index+2) + newtag + s.substring(end.index+end[0].length)
-    })
+exports.tag = function (tagname, attrs, inner) {
+	var attstr = ''
+	for (var k in attrs || {}) {
+		attstr += ' '+k+'="'+_attr.q(attrs[k])+'"'
+	}
+    return exports.safe('<'+tagname+attstr+'>'+_attr.q(inner)+'</tagname>')
 }
 
 var _attr = exports._ctx('attr')     // to facilitate internal quoting
