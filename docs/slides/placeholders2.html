@@ -6,5 +6,7 @@ in the <code>if=""</code> and with the ternary operator. (and thats all -- this 
 general as other languages).
 
 <p>We're also calling the <code>lede()</code> via <code>use=""</code>. <code>use=""</code> will set <code>.</code> to be the result of the whole tag. Thats what placeholders have as their parameter name by default.
+    
+<p>Note that placeholders are currently experimental with known gotchas; such as not being implemented on JS targets and not working correctly within 'set' or 'if' (and compiler doesn't warn you)
 
 {builder::as_code('examples/placeholders2.html')}

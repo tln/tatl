@@ -9,11 +9,10 @@
 	"defs.html",
 	"use.html",
 	"moreshortcuts.html",
-	"placeholders.html",
-	"placeholders2.html",
-	"gotchas.html",
-	"combos.html",
 	"quoting.html",
-	"comments.html"
+	"comments.html",
+    "filters.html",
+	"placeholders.html",
+	"placeholders2.html"
 ]
 }

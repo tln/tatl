@@ -1,0 +1,13 @@
+{pos ?= {}}
+<h1>Filters</h1>
+
+<p>Expressions can have filters, to alter the output quoting.
+    
+<p>Functions can also have filters, eg for caching. (No function level filters are currently provided!).
+Its usually better to use a return expression.
+     
+<p>Note that the * is picking up <code>name</code> as a parameter -- free variables
+(eg, not a <code>param<code> target, assigment, or loop iteration variable) will be
+added automatically.
+    
+{builder::as_code('examples/filters.html')}

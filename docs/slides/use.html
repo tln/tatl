@@ -2,9 +2,7 @@
 
 <p>We mentioned the top level tag was implicitly a macro. Specifically, if not other added, a <code>def="html(*)"</code> is assumed. The <code>*</code> means, add any <code>param</code> defined to the arguments.
 
-<p>We could just call the <code>template::html</code> macro at the end, but a better way is the <code>use="tag"</code>.
-That will find the local variables that correspond to the parameters of the template, 
-and pass them.
+<p>We could just call the <code>template::html</code> macro at the end, but a better way is the <code>use="tag"</code>. That will find the local variables that correspond to the parameters of the template, and pass them.
 
 <p>Notice that our parameter isn't constrained to being used in a single place. Our base template is using it for the title of the page, as well. In general you can use variables after they're defined, eg you can use variables from a for loop.
 

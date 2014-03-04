@@ -1,0 +1,11 @@
+<html>
+    <do set="greeting">Hello, {name}</do>
+    {greeting|trim}
+    
+    <do def="fn(*)|cache">Hello, {name}</do>
+
+    <do def="fn(*) = trim(.)">
+        Hello, {name}
+    </do>
+        
+</html>
