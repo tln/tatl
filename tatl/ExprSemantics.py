@@ -26,9 +26,8 @@ class ExprSemantics(ExprParser.ExprParser):
 
     def filtexp(self, ast):
         result = ast.expr
-        fmt = '%(0)s( %(1)s )'
         for filt in ast.filter or []:
-            result = IR.Part(fmt, fmt, filt, result)
+            result = IR.FiltExp(result, filt)
         return result
         
     def setif(self, ast):

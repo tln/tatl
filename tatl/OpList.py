@@ -288,87 +288,10 @@ class OpList:
         self.ops.extend(other.ops)    
     
     def optimize(self):
-        for cls in self.optimizers:
+        for cls in self.optimizers():
             cls(self.ops).optimize()
         return self
 
-    optimizers = []        
+    def optimizers(self):
+        return []        
 
-class Peepholer:
-    def __init__(self, ops):
-        self.ops = ops
-
-    def filt(self, op, cur):
-        return isinstance(op, self.cls)
-        
-    def valid_run(self, run):
-        return True
-
-    def optimize(self):
-        # update ops in place
-        runs = self.find_runs()
-        ofs = 0
-        for start, end in runs:
-            new = self.optimize_run(self.ops[start-ofs:end-ofs])
-            if new is None: continue
-            start -= ofs
-            end -= ofs
-            if not new:
-                if start > 0 and self.ops[start-1].Code.indent and self.ops[end].Code.dedent:
-                    # insert a Pass, to avoid "if x:", "elif x:" which is syntax error in python
-                    new = [Pass()]
-            self.ops[start:end] = new
-            ofs += (end - start) - len(new)
-                
-    def optimize_run(self, ops):
-        pass
-
-    def find_runs(self):
-        runs = []
-        flag = False
-        for ix, op in enumerate(self.ops):
-            newflag = self.filt(op, flag)
-            if flag == newflag: continue
-            if newflag:
-                runs.append([ix, None])
-            else:
-                runs[-1][-1] = ix
-                if not self.valid_run(runs[-1]):
-                    del runs[-1]
-            flag = newflag
-        if flag:
-            runs[-1][-1] = ix+1
-            
-        return runs
-
-class OldStartEndPeepholer(Peepholer):
-    start = Op
-    end = Op   # valid if next op (or last op if also in cls) is this run
-    def filt(self, op, cur):
-        if cur:
-            return isinstance(op, self.cls)
-        else:
-            return isinstance(op, self.start)
-        
-    def valid_run(self, run):
-        start, end = run
-        return isinstance(self.ops[end-1], self.end) or isinstance(self.ops[end], self.end)
-
-class StartEndPeepholer(Peepholer):
-    start = Op
-    middle = Op
-    end = Op
-    def find_runs(self):
-        runs = []
-        start = None
-        for ix, op in enumerate(self.ops):
-            if start is None:
-                if isinstance(op, self.start):
-                    start = ix
-            elif isinstance(op, self.end):
-                runs.append((start, ix+1))
-                start = None
-            elif not isinstance(op, self.middle):
-                start = None
-                # migt miss here
-        return runs

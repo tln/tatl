@@ -84,6 +84,14 @@ class Function:
         self.code = None
         return self.init.done()
 
+# ---------
+class IR(OpList):
+    def optimizers(self): 
+        # peephole imports IR, delay import to avoid circular import issues
+        from tatl.peephole import optimizers      
+        return optimizers
+    
+
 # -------- Major constructs created by ExprSemantics
 class Def(namedtuple('Def', 'name args result filters'), Out):
     def addto(self, block):
@@ -180,6 +188,7 @@ STAR_ARG = StarArg()
 class Filt(BasePart):
     # |filter calls are looked up in a special namespace, 
     # tatlrt.filter.
+    filtname = None   # built in filt name
     def __init__(self, expr):
         BasePart.__init__(self)
         if isinstance(expr, (BuiltinPath, VarPath)):
@@ -197,11 +206,17 @@ class Filt(BasePart):
         if fn:
             expr = '.'.join(['tatlrt', 'filters', fn.__name__] + path.paths[1:])
             path = Expr([], expr, expr)
+            self.filtname = fn.__name__
         return path
 
     def code(self, target):
         return self.expr.code(target)
 
+
+class FiltExp(ArgPart):
+    fields = ['expr', 'filt']
+    pyfmt = '%(filt)s( %(expr)s )'
+    jsfmt = '%(filt)s( %(expr)s )'
 def Path(paths):
     import tatlrt
     if paths[0] in tatlrt.__all__:
@@ -338,9 +353,13 @@ class EmitQText(_Val):
 
 class _Emit(ArgPart):
     fields = ['expr']
+    def fmtexpr(self):
+        return self.expr
 class EmitQExpr(_Emit):             # QE Quoted Expression
     pyfmt = '_emit(_q(%(expr)s))'
     jsfmt = '_.emit(_.q(%(expr)s));'
+    def fmtexpr(self):
+        return Part('_q(%(0)s)', '_.q(%(0)s)', self.expr)
 class EmitUExpr(_Emit):             # UE Unquoted Expression
     pyfmt = '_emit(unicode(%(expr)s))'
     jsfmt = '_.emit(%(expr)s);'
@@ -492,79 +511,4 @@ class UseEndAuto(BasePart):
 class UseEndArgs(ArgPart):
     fields = ['expr', 'callargs']
     pyfmt = jsfmt = '_emit(_.applyargs(%(expr)s, %(callargs)s))'
-
-# -------- Peepholers
-class CombineC(Peepholer):
-    cls = EmitQText
-    def optimize_run(self, ops):
-        v = ''.join([op.val for op in ops])
-        if not v:
-            # insert Pass??
-            return []
-        ops[-1].val = v
-        return ops[-1:]
-
-class CombineEmits(Peepholer):
-    cls = (_Emit, EmitQText)
-    def optimize_run(self, ops):
-        if len(ops) < 2: return
-            
-        exprs = [repr(op.val) if op.name == 'C' else op.code()[6:-1] # strip off _emit( )
-                 for op in ops]
-                 
-        # gross...
-        op = EMITTRICK1(exprs)
-        return [op]
-
-class CombineEmitsFmt(Peepholer):
-    cls = (_Emit, EmitQText)
-    def optimize_run(self, ops):
-        if len(ops) < 2: return
-        fmt = ''
-        exprs = []
-        for op in ops:
-            if op.name in ('U', 'C'):
-                fmt += op.val.replace('%', '%%')
-            else:
-                fmt += '%s'
-                exprs.append(op.code()[6:-1]) # strip off _emit( )
-
-        expr = '%r %% (%s)' % (fmt, ', '.join(exprs))
-        op = UE(expr)
-        return [op]
-
-
-class HoistQuote(StartEndPeepholer):
-    "Non-functional -- hoist quoting into _.iter. Doesn't help bigtable.py that much..."
-    start = ()  #FOR2   # s/bFor
-    middle = (_Emit, EmitQText)
-    end = () #ENDFOR
-    
-    def optimize_run(self, ops):
-        # check that the EmitQ expressions match loop names
-        # make mods as we go; throw them away if we find out its not a match
-        for i, op in enumerate(ops):
-            if i == 0:
-                n1, n2, rexpr = ops[0]
-                ok_code = {QE(n1).code('py'): n1, QE(n2).code('py'): n2}
-                ops[i] = FOR2Q(n1, n2, rexpr)
-            elif isinstance(op, EmitQ):
-                if op.code() in ok_code:
-                    ops[i] = UE(ok_code[op.code('py')])
-                else:
-                    return None
-        return ops  # not implemented
-        
-    def find_runs(self):
-        #import pdb
-        #pdb.set_trace()
-        return StartEndPeepholer.find_runs(self)
-
-class IR(OpList):
-    optimizers = [
-        CombineC,
-        #CombineEmitsFmt,
-        #HoistQuote,
-    ]
-
 

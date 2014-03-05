@@ -42,7 +42,7 @@
     "{a == 2 ? \"couple\" : \"few\"}": "set   = []\nexprs = []\nemit  = py: \"couple\" if a == 2 else \"few\"\n        js: a == 2 ? \"couple\" : \"few\"\n        rvars: a\nrest  = ", 
     "{a ?: 1}": "set   = []\nexprs = []\nemit  = py: (bool(a) or 1)\n        js: ((tatlrt.bool(a)) || (1))\n        rvars: a\nrest  = ", 
     "{a ~! /bar/ ? yes}": "set   = []\nexprs = []\nemit  = py: yes if not _.search('bar', a) else None\n        js: !_.search(/bar/, a) ? yes : null\n        rvars: a,yes\nrest  = ", 
-    "{expr |afilter}": "set   = []\nexprs = []\nemit  = py/js: afilter( expr )\n        rvars: afilter,expr\nrest  = ", 
+    "{expr |afilter}": "set   = []\nexprs = []\nemit  = py/js: afilter( expr )\n        rvars: expr,afilter\nrest  = ", 
     "{macro(var1, var1)}": "set   = []\nexprs = []\nemit  = py/js: macro(var1, var1)\n        rvars: macro,var1,var1\nrest  = ", 
     "{template::var1}": "set   = []\nexprs = []\nemit  = py/js: _.load('template', ['var1'])\nrest  = ", 
     "{test ? value : value}": "set   = []\nexprs = []\nemit  = py: value if bool(test) else value\n        js: tatlrt.bool(test) ? value : value\n        rvars: test,value,value\nrest  = ", 
