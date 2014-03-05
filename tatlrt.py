@@ -1,108 +1,84 @@
 # API for runtime
-from cgi import escape as _escape
 import json, re
-from collections import namedtuple as _namedtuple
 from warnings import warn
 
-#abs = abs
-#all = all
-#any = any
-#apply = apply
-#max = max
-#min = min
-#reversed = reversed
-#round = round
-#sorted = sorted
-#str = str
-#zip = zip
-
+# Define some of the TATL built-ins. Compiler uses __all__ to determine whether name refers to a
+# built-in.
 null = None
 false = False
 true = True
-bool = bool
 len = len
 __all__ = ['len', 'true', 'false', 'null']
 
 def public(obj):
-    "Functions called directly from templates should be marked public"
+    "Mark a class or function as public"
     __all__.append(obj.__name__)
     return obj
 
+# Compiler generates calls to tatlrt.bool, but it isnt a builtin that templates need to use.
+# TATL defines truthiness just like Python, so re=using the builtin works; tatlrt.js implements 
+# Python-compatible logic.
+bool = bool
 
+# A namespace of filters.
 @apply
 @public
 class filters:
     def _add(self, fn, _alias=re.compile('Alias: (\w+)')):
+        "Makr a function as a filter. Include Alias: name in the docstring to make a shortened alias."
         setattr(self, fn.__name__, fn)
         for alias in _alias.findall(fn.__doc__ or ''):
             setattr(self, alias, fn)
         return fn
 
-
+# Compiler generates calls to these to implement 0..10 and 0...10 logic.
 def range_incl(n, m):
     return range(n, m+1) if n < m else range(n, m-1, -1)
 
 def range_excl(n, m):
     return range(n, m) if n < m else range(n-1, m-1, -1)
-        
-class _Vars(object):
-    def __init__(self, locals):
-        self.__dict__.update(locals.pop('_kw', {}))
-        self.__dict__.update(locals)
-                        
 
+# Quoting / escaping logic
+@filters._add
+class safe(unicode): "Quoted strings are 'safe' and do not get quoted again."
+_quote_safe = lambda s: s
+def _quote_str(o):
+    """Escape a str/unicode object. Note that compiled code never uses ' for attributes and > 
+    doesn't needed to be escaped to form valid HTML. These replace calls are a big cost, 
+    so saving 40% of them is a win.
+    """
+    return o.replace(u'&', u'&amp;')\
+            .replace(u'<', u'&lt;')\
+            .replace(u"'", u'&#39;')
 
-def _attr_other(o, q=_escape):
+def _quote_other(o, q=_quote_str):
+    """Escape a non-basestring, non-unicode object. 
+    Lists are space separated, dictionaries are repr-ed
+    """
     if isinstance(o, (tuple, list)):
         return ' '.join([_escape(unicode(item)) for item in o])
     return q(unicode(o))
 
-@filters._add
-class safe(unicode): pass
-_safe = lambda s: s
-
-def _escape2(o, _e=_escape, _p=re.compile('''[<>&'"]''').search):
-    if _p(o) is None:
-        return o
-    return _e(o)
-    
-def _escape(o):
-    return o.replace(u'&', u'&amp;')\
-            .replace(u'<', u'&lt;')\
-            .replace(u'>', u'&gt;')\
-            .replace(u'"', u'&quot;')\
-            .replace(u"'", u'&#39;')
-
-def _escape2(o):
-    return unicode(o).replace(u'&', u'&amp;').replace(u'<', u'&lt;').replace(u'>', u'&gt;')
-
-def _escape3(o):
-    return o.replace(u'&', u'&amp;').replace(u'<', u'&lt;')
-    
-def _bool(b):
-    return 'true' if b else ''
-    
+# Context objects, most compiler code constructs go through one of these
 class _Context(object):
+    "Context object, created for each TATL macro"
+    # Define type-switches for quoting
     q_def = {
-        bool: _bool,
         int: unicode, 
         float: unicode, 
-        safe: _safe,
+        safe: _quote_safe,
     }
     q = {
         'none': (json.dumps, {
             str: str,
             unicode: unicode,
         }),
-        'attr': (_attr_other, {
-            str: _escape,
-            unicode: _escape,
-        }),
-        'attr2': (lambda o: _attr_other(o, _escape2), {
-            str: _escape2,
-            unicode: _escape2,
+        'attr': (_quote_other, {
+            str: _quote_str,
+            unicode: _quote_str,
         }),
     }
+    
     def __init__(self, ctxname):
         self.qstack = [0]  # track whether .quote has been called with an empty value
         self.estack = [[]] # stack of emit lists        
@@ -110,7 +86,7 @@ class _Context(object):
         self.get1 = _get1
         self.quote = unicode
         self.qcache = {}
-        self.cstack = []   # stack f functions
+        self.cstack = []   # stack quote functions
         self.pushctx(ctxname)
         
     def pushctx(self, ctxname):
@@ -118,6 +94,7 @@ class _Context(object):
         try:
             self.quote = self.qcache[ctxname]
         except KeyError:
+            # Build a quoting function from type switches
             from collections import defaultdict
             default, typesdict = self.q[ctxname]
             d = defaultdict(lambda:default, self.q_def)
@@ -135,12 +112,13 @@ class _Context(object):
     def _none(self, arg):
         self.qstack[-1] = 1
         return ''
+
     def _bool(self, arg):
         if arg: return 'true'
         self.qstack[-1] = 1
         return ''
+
     def push(self):
-        cur = self.estack[-1]
         self.estack.append([])
         e = self.emit = self.estack[-1].append
         return e
@@ -159,7 +137,7 @@ class _Context(object):
         try:
             return safe(''.join(map(''.join, self.estack)))
         except:
-            print 'Error in estack!'
+            warn('Error in estack!')
             return ''.join([''.join(map(unicode, l)) for l in self.estack])
         
     def elidestart(self):
@@ -171,7 +149,7 @@ class _Context(object):
         return not self.qstack.pop(), c, e
 
     def load(self, name, path):
-        o = __import__(name)
+        o = __import__(name)   # TODO we need a whitelist here
         o = getattr(o, path.pop(0)) # error if first name not found
         return self.get(o, path)
 
@@ -181,8 +159,7 @@ class _Context(object):
         return o    
 
     def applyauto(self, func, locals):
-        # Determine which names to provide and call!
-        # Result is emitted directly
+        #TODO remove this code path
         if isinstance(func, (_Star, _Plusplus)):
             argnames = ['dot']
         else:
@@ -193,7 +170,7 @@ class _Context(object):
         return result or ''
 
     def applyargs(self, func, *args):
-        # try/except?
+        #TODO finalize semantics here. try/except?
         result = func(*args)
         return result or ''
 
@@ -208,7 +185,6 @@ class _Context(object):
             return sorted(m())
 
     def iter(self, obj):
-        d = self.quote.d
         if obj is None or obj == '':
             return []
         elif isinstance(obj, basestring):
@@ -216,32 +192,13 @@ class _Context(object):
         else:
             return obj
 
-    def itemsq(self, obj):
-        d = self.quote.d
-        if obj is None: 
-            return ()
-        try:
-            m = obj.iteritems
-        except AttributeError:
-            return ((x+1, d[obj.__class__](obj)) for x, y in enumerate(obj))
-        else:
-            return ((d[k.__class__](k), d[v.__class__](v)) for k, v in m())
-                        
-    def iterq(self, obj):
-        d = self.quote.d
-        if obj is None or obj == '':
-            return []
-        elif isinstance(obj, basestring):
-            return [d[obj.__class__](obj)]
-        else:
-            return (d[obj.__class__](obj) for obj in obj)
-
     def search(self, pattern, object):
         if isinstance(object, basestring):
             return re.search(pattern, object) is not None
         return False
 
 def _get1(o, p):
+    "Implement path lookup, both {o.p} and {o[p]}"
     try:
         return o[p]
     except (TypeError, KeyError, IndexError, AttributeError):
@@ -255,8 +212,62 @@ def _get1(o, p):
     warn("Unexpected error getting %r[%r]: %s" % (o, p, e))
     return None
 
-_none = type(None)
-_simple = (_none, basestring, int, long, float)
+class _Star:
+    def __init__(self, l, quote):
+        self._l = l
+        self._len = len(l)
+        self._sp = 0
+        self._quote = quote
+
+    def __call__(self, o):
+        s = self._quote(o)
+        if s:
+            if self._sp:
+                s = ' '+s
+            self._sp = s[-1:] not in ' \n'
+            self._l.append(s)
+        return o
+
+    def __unicode__(self):
+        return ''.join(self._l[self._len:])
+        
+    def __getitem__(self, i):
+        return self._l[i + self._len]
+        
+    def __len__(self):
+        return len(self._l) - self._len
+
+
+
+class _Plusplus:
+    def __init__(self, l):
+        self._l = l
+        self._ix = len(l)
+        l.append('0')
+        self.cur = 0
+
+    def __call__(self, value=""):
+        if value or value == "":
+            self.cur += 1
+            self._l[self._ix] = str(self.cur)
+        return ''
+
+    def __unicode__(self):
+        return unicode(self.cur)
+
+    def __cmp__(self, other):
+        return cmp(self.cur, other)
+
+    def __int__(self):
+        return self.cur
+    
+
+def _ctx(name):
+    c = _Context(name)
+    return c, c.quote, c.emit
+
+_attr = _Context('attr')
+# forloop, swiss army knife of looping
 class _Forloop(object):
     length = 0
     counter0 = 0
@@ -312,7 +323,7 @@ def forloop(obj, opts={}):
     "Support forloop.counter, etc"
     
     #forloop [pre] should have counter = counter0 = key = value = null
-    if obj is None: 
+    if obj is None:
         return
     
     if isinstance(obj, basestring):
@@ -386,62 +397,8 @@ class Aggregator:
             d[key] = fn(self.values[key])
         return d
 
-class _Star:
-    def __init__(self, l, quote):
-        self._l = l
-        self._len = len(l)
-        self._sp = 0
-        self._quote = quote
 
-    def __call__(self, o):
-        s = self._quote(o)
-        if s:
-            if self._sp:
-                s = ' '+s
-            self._sp = s[-1:] not in ' \n'
-            self._l.append(s)
-        return o
-
-    def __unicode__(self):
-        return ''.join(self._l[self._len:])
-        
-    def __getitem__(self, i):
-        return self._l[i + self._len]
-        
-    def __len__(self):
-        return len(self._l) - self._len
-
-
-
-class _Plusplus:
-    def __init__(self, l):
-        self._l = l
-        self._ix = len(l)
-        l.append('0')
-        self.cur = 0
-
-    def __call__(self, value=""):
-        if value or value == "":
-            self.cur += 1
-            self._l[self._ix] = str(self.cur)
-        return ''
-
-    def __unicode__(self):
-        return unicode(self.cur)
-
-    def __cmp__(self, other):
-        return cmp(self.cur, other)
-
-    def __int__(self):
-        return self.cur
-    
-
-def _ctx(name):
-    c = _Context(name)
-    return c, c.quote, c.emit
-
-_attr = _Context('attr')
-
+# Additional filters
 @filters._add
 def url(s):
     "Alias: u"
@@ -454,6 +411,7 @@ def trim(s):
     return s.strip()
 
 TAG = re.compile('(\s*<)([a-zA-Z0-9_.:-]+)(.*?>)', re.DOTALL)
+# Tag-oriented filters
 def _findtag(s, fn):
     if not isinstance(s, basestring): return s
     start = m = TAG.match(s)
