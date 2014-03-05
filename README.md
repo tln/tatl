@@ -176,19 +176,6 @@ Special tags / quoting
 	<label>, <output>
 		for= does not have extended meaning.
 
-Needed and Possible changes
-
-* IR /OpList -- lvars /rvars etc should be lazy per target like code(). Move all code out of ExprSemantics. Simplify the logic, there are too many base classes.
-* packaging... npm, pip?
-* The parser. bs4 + lxml adds <html><body><p> and loses line info. HTMLParsers() requires sax rewrite but seems more reliable  
-* More python versions... 3.4, maybe 2.6?
-* js - use string concatenation. Its miles faster on browsers.
-* py - Re-deploy peepholers
-* Babel? Whats the JS solution?
-* Placeholders -- need fixes
-* any bool-expr -- boolean quantifiers
-* Expand front matter to use built-in value syntax, (which is basically JSON5). // and /* */ Comments
-
 Builtins
     len(x) -- return length of list
     true
@@ -204,3 +191,19 @@ Built in filters
     url
     safe
     trim
+
+
+Needed and Possible changes
+
+* Finish JS compat
+* Limit loading to specified modules
+* IR /OpList -- lvars /rvars etc should be lazy per target like code(). Move all code out of ExprSemantics. Simplify the logic, there are too many base classes.
+* packaging... npm, pip?
+* The parser. bs4 + lxml adds <html><body><p> and loses line info. HTMLParsers() requires sax rewrite but seems more reliable.
+* More python versions... 3.4, maybe 2.6?
+* js - use string concatenation. Its miles faster on browsers.
+* Babel? Whats the JS solution?
+* Placeholders -- need fixes
+* any and all -- boolean quantifiers
+* Expand front matter to use built-in value syntax, (which is basically JSON5). // and /* */ Comments
+* Further builtins... min, max, reversed, sorted, zip... groupby, batch...
