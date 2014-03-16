@@ -195,9 +195,9 @@ Built in filters
 
 Needed and Possible changes
 
-* Finish JS compat
+* Finish JS compat [see: `for file in tests/out/*.py; do diff -u ${file%.*}.*.html; done`]
 * Limit loading to specified modules
-* IR /OpList -- lvars /rvars etc should be lazy per target like code(). Move all code out of ExprSemantics. Simplify the logic, there are too many base classes.
+* IR /OpList -- lvars / rvars etc should be lazy per target like code(). Move all code out of ExprSemantics. Simplify the logic, there are too many base classes.
 * packaging... npm, pip?
 * The parser. bs4 + lxml adds <html><body><p> and loses line info. HTMLParsers() requires sax rewrite but seems more reliable.
 * More python versions... 3.4, maybe 2.6?
