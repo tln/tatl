@@ -165,11 +165,12 @@ class List(BasePart):
         map(self.add, partlist)
         
     def code(self, target):
-        return self.paren % self.join.join(
+        value = lambda s: s[target] if isinstance(s, dict) else s
+        return value(self.paren) % value(self.join).join(
             p.code(target) 
             for p in self.partlist
         )
-
+        
 class Lvar(BasePart):
     def __init__(self, lvar):
         BasePart.__init__(self)

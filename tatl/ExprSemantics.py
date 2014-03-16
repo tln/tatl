@@ -81,7 +81,7 @@ class ExprSemantics(ExprParser.ExprParser):
     def map(self, ast):
         if ast == ['{', '}']:
             return IR.Expr([], '{}')
-        return self._join_with_star(ast, '{%s}', ', ', 'merge(%(0)s)')
+        return self._join_with_star(ast, '{%s}', ', ', 'merge(%s)')
 
     def member(self, ast):
         return IR.Part('%(0)s: %(1)s', '%(0)s: %(1)s', ast.key, ast.val)
@@ -159,9 +159,12 @@ class ExprSemantics(ExprParser.ExprParser):
 
     def list(self, ast):
         if ast == ['[', ']']: return IR.Expr([], '[]')
-        return self._join_with_star(ast, '[%s]', '+', '')
+        return self._join_with_star(ast, '[%s]', 
+            {'py': '+', 'js':','}, 
+            {'py': '%s', 'js': '[].concat(%s)'})
     
-    def _join_with_star(self, ast, paren, join, outer=''):
+    @debug
+    def _join_with_star(self, ast, paren, join, outer='%s'):
         parts = []
         expr = []
         for p in ast:
@@ -177,9 +180,7 @@ class ExprSemantics(ExprParser.ExprParser):
         if len(parts) == 1:
             parts = parts[0]
         else:
-            parts = IR.List(parts, join)
-            if outer:
-                parts = IR.Part(outer, outer, parts)
+            parts = IR.List(parts, join, outer)
         parts.out() # check its ok
         return parts
 
