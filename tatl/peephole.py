@@ -1,6 +1,10 @@
 
 import OpList, IR
 
+class Pass(OpList.BasePart):
+    py = 'pass'
+    js = '/* no op */'
+
 class Peepholer:
     def __init__(self, ops):
         self.ops = ops

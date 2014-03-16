@@ -74,7 +74,7 @@ class _Context(object):
     # Define type-switches for quoting
     q_def = {
         int: unicode, 
-        float: unicode, 
+        float: '%.16g'.__mod__, 
         safe: _quote_safe,
     }
     q = {
@@ -279,7 +279,7 @@ _attr = _Context('attr')
 # forloop, swiss army knife of looping
 class _Forloop(object):
     length = 0
-    counter0 = 0
+    counter0 = None
     key = None
     value = None
     sum = None
@@ -288,7 +288,7 @@ class _Forloop(object):
     prev = None
     next = None
     
-    counter = property(lambda self: self.counter0 + 1)
+    counter = property(lambda self: None if self.counter0 is None else self.counter0 + 1)
     first = property(lambda self: self.counter0 == 0)
     last = property(lambda self: self.counter == self.length)
     
@@ -327,6 +327,12 @@ class _Forloop(object):
         next.prev = self
         return next
 
+    def __repr__(self):
+        result = '<forloop:'
+        for k, v in self.__dict__.items():
+            if k in ('prev', 'next', 'cycle') or k.endswith('class'): continue
+            result += ' %s=%r' % (k, v)
+        return result + ' classes=%r>' % self.classes()
 @public
 def forloop(obj, opts={}):
     "Support forloop.counter, etc"
@@ -342,14 +348,15 @@ def forloop(obj, opts={}):
     agg = agg and Aggregator(agg)
         
     result = _Forloop(len(obj), **opts)
-    
-    result.pre = bool(result.preclass)
-    lastresult = None
+
+    if bool(result.preclass):
+        result.pre = True
+        lastresult = result
+        result = result.make_next()
+    else:
+        lastresult = None
     for result.counter0, (result.key, result.value) in enumerate(_attr.items(obj)):
         if agg: agg(result.value)
-        if result.pre:
-            yield result
-            result.pre = False
         if lastresult:
             yield lastresult
         lastresult = result
