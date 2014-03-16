@@ -177,6 +177,7 @@ Special tags / quoting
 		for= does not have extended meaning.
 
 Builtins
+
     len(x) -- return length of list
     true
     false
@@ -188,6 +189,7 @@ Builtins
     attrs(attrmap, inner) -- add attributes to outer tag
 
 Built in filters
+
     url
     safe
     trim
@@ -195,7 +197,7 @@ Built in filters
 
 Needed and Possible changes
 
-* Finish JS compat [see: `for file in tests/out/*.py; do diff -u ${file%.*}.*.html; done`]
+* Finish JS compat (see: `for file in tests/out/*.py; do diff -u ${file%.*}.*.html; done`)
 * Limit loading to specified modules
 * IR /OpList -- lvars / rvars etc should be lazy per target like code(). Move all code out of ExprSemantics. Simplify the logic, there are too many base classes.
 * packaging... npm, pip?
