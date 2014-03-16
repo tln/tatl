@@ -104,6 +104,10 @@ var _proto = {
             return regex.test(object)
         }
         return false
+    },
+    applyargs: function (self, func) {
+        var rest = Array.prototype.slice.call(arguments, 2)
+        return func.apply(self, rest)
     }
 }
 var _tag = {
@@ -212,10 +216,14 @@ exports.forloop = function (obj, opts) {
 	return r
 }
 
-exports.wrap = function (fn) {
+function wrap(fn) {
     return function (f) {
-        return function () {
-            return fn(f.apply({}, arguments))
+        if (f instanceof Function) {
+            return function () {
+                return fn(f.apply({}, arguments))
+            }
+        } else {
+            return fn.apply({}, arguments)
         }
     }
 }
@@ -234,9 +242,10 @@ exports.bool = function (v) {
 	}
 }
 
-function url(s) { return encodeURIComponent(s) }
+url = wrap(function (s) { return encodeURIComponent(s) })
+
 exports.filters = {
-    trim: function (s) { return s.trim() },
+    trim: wrap(function (s) { return s.trim() }),
     url: url, u: url,
 }
 
@@ -281,4 +290,8 @@ exports.attrs = function (attdict, s) {
 		var st = start[1] + start[2]
         return st + attstr + s.substring(st.length)
 	})
+}
+
+exports.len = function (obj) { 
+    return obj.length 
 }

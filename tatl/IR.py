@@ -510,5 +510,6 @@ class UseEndAuto(BasePart):
             
 class UseEndArgs(ArgPart):
     fields = ['expr', 'callargs']
-    pyfmt = jsfmt = '_emit(_.applyargs(%(expr)s, %(callargs)s))'
+    pyfmt = '_emit(_.applyargs(%(expr)s, %(callargs)s))'
+    jsfmt = '_emit(_.applyargs(this, %(expr)s, %(callargs)s))'
 

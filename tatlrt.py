@@ -25,10 +25,19 @@ bool = bool
 @public
 class filters:
     def _add(self, fn, _alias=re.compile('Alias: (\w+)')):
-        "Makr a function as a filter. Include Alias: name in the docstring to make a shortened alias."
-        setattr(self, fn.__name__, fn)
-        for alias in _alias.findall(fn.__doc__ or ''):
-            setattr(self, alias, fn)
+        """Mark a function as a filter. Include Alias: name in the docstring to make a shortened alias.
+        Also add logic such that if used in def="" context (ie, given a function, it will return a wrapper)
+        """
+        def f(arg, *args, **kw):
+            if callable(arg) and not (args or kw):
+                return lambda *args, **kw: fn(arg(*args, **kw))
+            else:
+                return fn(arg, *args, **kw)
+        name = f.__name__ = fn.__name__
+        doc = f.__doc__ = fn.__doc__
+        setattr(self, name, f)
+        for alias in _alias.findall(doc or ''):
+            setattr(self, alias, f)
         return fn
 
 # Compiler generates calls to these to implement 0..10 and 0...10 logic.
@@ -56,7 +65,7 @@ def _quote_other(o, q=_quote_str):
     Lists are space separated, dictionaries are repr-ed
     """
     if isinstance(o, (tuple, list)):
-        return ' '.join([_escape(unicode(item)) for item in o])
+        return ' '.join([q(unicode(item)) for item in o])
     return q(unicode(o))
 
 # Context objects, most compiler code constructs go through one of these
@@ -449,7 +458,7 @@ def tag(tagname, attrs, inner):
     >>> tag('h1', {'class': 'large'}, safe(u'foo:<title>HI</title>'))
     u'<h1 class="large">foo:<title>HI</title></h1>'
     """
-    attstr = ''.join(' %s="%s"' % (k, _escape(v)) for k, v in sorted((attrs or {}).items()))
+    attstr = ''.join(' %s="%s"' % (k, _attr.quote(v)) for k, v in sorted((attrs or {}).items()))
     return safe(u'<%s>%s</%s>' % (tagname+attstr, _attr.quote(inner), tagname))
 
 @public
@@ -459,7 +468,7 @@ def attrs(attrs, inner):
     u'<title id="id123">HI</title>'
     """
     def _replace(s, start, end):
-        attstr = ''.join(' %s="%s"' % (k, _escape(v)) for k, v in attrs.items())
+        attstr = ''.join(' %s="%s"' % (k, _attr.quote(v)) for k, v in attrs.items())
         e = start.end(2)
         return s[:e]+attstr+s[e:]
     return safe(_findtag(inner, _replace))
