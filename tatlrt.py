@@ -453,8 +453,9 @@ def contents(inner):
     """
     return safe(_findtag(inner, lambda s, start, end: s[start.end():end.start()]))
 
+notpassed = object()
 @public
-def tag(tagname, attrs, inner):
+def tag(tagname, attrs_or_inner, inner=notpassed):
     """
     >>> tag('h1', {}, u'HI')
     u'<h1>HI</h1>'
@@ -465,7 +466,15 @@ def tag(tagname, attrs, inner):
     >>> tag('h1', {'class': 'large'}, safe(u'foo:<title>HI</title>'))
     u'<h1 class="large">foo:<title>HI</title></h1>'
     """
-    attstr = ''.join(' %s="%s"' % (k, _attr.quote(v)) for k, v in sorted((attrs or {}).items()))
+    if inner is notpassed:
+        attstr = ''
+        inner = attrs_or_inner
+    else:
+        attrs = attrs_or_inner or {}
+        attstr = ''.join(
+            ' %s="%s"' % (k, _attr.quote(v))
+            for k, v in sorted(attrs.items())
+        )
     return safe(u'<%s>%s</%s>' % (tagname+attstr, _attr.quote(inner), tagname))
 
 @public
