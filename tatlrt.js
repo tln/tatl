@@ -68,7 +68,7 @@ var _proto = {
 	},
 	pop: function ()  { 
 		this.cur = this.outs[this.outs.length-2]
-		return this.outs.pop().join('') 
+		return exports.safe(this.outs.pop().join(''))
 	},
 	result: function () { 
 		for (var i = 0; i < this.outs.length; i++) {
@@ -276,7 +276,7 @@ exports.tag = function (tagname, attrs, inner) {
 	for (var k in attrs || {}) {
 		attstr += ' '+k+'="'+_attr.q(attrs[k])+'"'
 	}
-    return exports.safe('<'+tagname+attstr+'>'+_attr.q(inner)+'</tagname>')
+    return exports.safe('<'+tagname+attstr+'>'+_attr.q(inner)+'</'+tagname+'>')
 }
 
 var _attr = exports._ctx('attr')     // to facilitate internal quoting
