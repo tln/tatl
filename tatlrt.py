@@ -16,7 +16,7 @@ def public(obj):
     return obj
 
 # Compiler generates calls to tatlrt.bool, but it isnt a builtin that templates need to use.
-# TATL defines truthiness just like Python, so re=using the builtin works; tatlrt.js implements 
+# TATL defines truthiness just like Python, so re=using the builtin works; tatlrt.js implements
 # Python-compatible logic.
 bool = bool
 
@@ -52,8 +52,8 @@ def range_excl(n, m):
 class safe(unicode): "Quoted strings are 'safe' and do not get quoted again."
 _quote_safe = lambda s: s
 def _quote_str(o):
-    """Escape a str/unicode object. Note that compiled code never uses ' for attributes and > 
-    doesn't needed to be escaped to form valid HTML. These replace calls are a big cost, 
+    """Escape a str/unicode object. Note that compiled code never uses ' for attributes and >
+    doesn't needed to be escaped to form valid HTML. These replace calls are a big cost,
     so saving 40% of them is a win.
     """
     return o.replace(u'&', u'&amp;')\
@@ -61,7 +61,7 @@ def _quote_str(o):
             .replace(u"'", u'&#39;')
 
 def _quote_other(o, q=_quote_str):
-    """Escape a non-basestring, non-unicode object. 
+    """Escape a non-basestring, non-unicode object.
     Lists are space separated, dictionaries are repr-ed
     """
     if isinstance(o, (tuple, list)):
@@ -73,8 +73,8 @@ class _Context(object):
     "Context object, created for each TATL macro"
     # Define type-switches for quoting
     q_def = {
-        int: unicode, 
-        float: '%.16g'.__mod__, 
+        int: unicode,
+        float: '%.16g'.__mod__,
         safe: _quote_safe,
     }
     q = {
@@ -87,17 +87,17 @@ class _Context(object):
             unicode: _quote_str,
         }),
     }
-    
+
     def __init__(self, ctxname):
         self.qstack = [0]  # track whether .quote has been called with an empty value
-        self.estack = [[]] # stack of emit lists        
+        self.estack = [[]] # stack of emit lists
         self.emit = self.estack[-1].append   # adds to bottom list; called a lot
         self.get1 = _get1
         self.quote = unicode
         self.qcache = {}
         self.cstack = []   # stack quote functions
         self.pushctx(ctxname)
-        
+
     def pushctx(self, ctxname):
         self.cstack.append(self.quote)
         try:
@@ -114,10 +114,10 @@ class _Context(object):
                 return d[obj.__class__](obj)
             quote.d = d
             self.quote = self.qcache[ctxname] = quote
-            
+
     def popctx(self):
         self.quote = self.cstack.pop()
-        
+
     def _none(self, arg):
         self.qstack[-1] = 1
         return ''
@@ -131,24 +131,24 @@ class _Context(object):
         self.estack.append([])
         e = self.emit = self.estack[-1].append
         return e
-        
+
     def star(self):
         return _Star(self.estack[-1], self.quote), self.push()
-        
+
     def plusplus(self):
         return _Plusplus(self.estack[-1]), self.push()
-        
+
     def pop(self):
         e = self.emit = self.estack[-2].append
         return safe(''.join(self.estack.pop())), e
-        
+
     def result(self):
         try:
             return safe(''.join(map(''.join, self.estack)))
         except:
             warn('Error in estack!')
             return ''.join([''.join(map(unicode, l)) for l in self.estack])
-        
+
     def elidestart(self):
         self.qstack.append(0)
         return self.push()
@@ -165,7 +165,7 @@ class _Context(object):
     def get(self, o, path):
         for p in path:
             o = self.get1(o, p)
-        return o    
+        return o
 
     def applyauto(self, func, locals):
         #TODO remove this code path
@@ -184,7 +184,7 @@ class _Context(object):
         return result or ''
 
     def items(self, obj):
-        if obj is None: 
+        if obj is None:
             return ()
         try:
             m = obj.items
@@ -239,10 +239,10 @@ class _Star:
 
     def __unicode__(self):
         return ''.join(self._l[self._len:])
-        
+
     def __getitem__(self, i):
         return self._l[i + self._len]
-        
+
     def __len__(self):
         return len(self._l) - self._len
 
@@ -269,7 +269,7 @@ class _Plusplus:
 
     def __int__(self):
         return self.cur
-    
+
 
 def _ctx(name):
     c = _Context(name)
@@ -287,11 +287,11 @@ class _Forloop(object):
     post = False
     prev = None
     next = None
-    
+
     counter = property(lambda self: None if self.counter0 is None else self.counter0 + 1)
     first = property(lambda self: self.counter0 == 0)
     last = property(lambda self: self.counter == self.length)
-    
+
     def __init__(self, length, cycle=[], firstclass='first', lastclass='last', preclass='', postclass='', **opts):
         self.length = length
         self.cycle = cycle
@@ -336,17 +336,17 @@ class _Forloop(object):
 @public
 def forloop(obj, opts={}):
     "Support forloop.counter, etc"
-    
+
     #forloop [pre] should have counter = counter0 = key = value = null
     if obj is None:
         return
-    
+
     if isinstance(obj, basestring):
         obj = [obj]
-        
+
     agg = opts.pop('total', None)
     agg = agg and Aggregator(agg)
-        
+
     result = _Forloop(len(obj), **opts)
 
     if bool(result.preclass):
@@ -393,7 +393,7 @@ class Aggregator:
             self.consts = l[False]
             for k, v in aggregators.items():
                 l[callable(v)][k] = v
-            self.has_aggs = bool(self.aggfns or self.consts)            
+            self.has_aggs = bool(self.aggfns or self.consts)
             self.values = dict((k, []) for k in self.aggfns)
     def __call__(self, value):
         if not self.has_aggs: return
@@ -404,7 +404,7 @@ class Aggregator:
                 self.values[key].append(_get1(value, key))
 
     def value(self):
-        if not self.has_aggs: 
+        if not self.has_aggs:
             return None
         if self.aggfn:
             return self.aggfn(self.values)
@@ -421,10 +421,21 @@ def url(s):
     import urllib
     return urllib.quote(s)
 
+
+def tostr(s):
+    "Convert object to string with same semantics as default context"
+    if s is None:
+        return ''
+    if isinstance(s, basestring):
+        return s
+    if isinstance(s, float):
+        return '%.16g' % s
+    return unicode(s)
+
 @filters._add
 def trim(s):
     "A filter"
-    return s.strip()
+    return tostr(s).strip()
 
 TAG = re.compile('(\s*<)([a-zA-Z0-9_.:-]+)(.*?>)', re.DOTALL)
 # Tag-oriented filters

@@ -9,7 +9,7 @@ exports._ctx = function(quotestyle) {
 }
 exports._bind = function(f) {
 	// compiled macros use func.call to emulate Python's **kw
-	// We don't want to pick up the "this" from structures constructed 
+	// We don't want to pick up the "this" from structures constructed
 	// later...
 	var f2 = f.bind({})
 	f2.call = f.call.bind(f)
@@ -51,26 +51,26 @@ var _proto = {
 	q: function q(s) {
         if (s === '') return ''
         if (s === 0) return '0'
-		if (!s) { 
+		if (!s) {
 			this.qstack[0] = false
             return ''
         }
 		if (s.__safe__)
 			return s
-		if (s instanceof Array) 
+		if (s instanceof Array)
 			return s.map(this.q).join(' ')
 		if (typeof s == 'object' && !(s instanceof String))
 			return JSON.stringify(s)
 		return (''+s).replace(/[&<>"']/g, function (c) { return ents[c] })
     },
-	push: function () { 
-		this.outs.push(this.cur = []) 
+	push: function () {
+		this.outs.push(this.cur = [])
 	},
-	pop: function ()  { 
+	pop: function ()  {
 		this.cur = this.outs[this.outs.length-2]
 		return exports.safe(this.outs.pop().join(''))
 	},
-	result: function () { 
+	result: function () {
 		for (var i = 0; i < this.outs.length; i++) {
 			this.outs[i] = this.outs[i].join('')
 		}
@@ -84,7 +84,7 @@ var _proto = {
 		return this.qstack.shift()
 	},
 	get1: function (v, path) {
-		if (v == undefined || v == null) return v 
+		if (v == undefined || v == null) return v
         if (v[path] instanceof Function) return v[path].bind(v)
         return v[path]
 	},
@@ -123,12 +123,12 @@ var ents = {
 _forloop = {
 	cycle: [],
 	firstclass: 'first',
-	lastclass: 'last', 
-	preclass: '', 
+	lastclass: 'last',
+	preclass: '',
 	postclass: '',
 	pre: false,
 	post: false,
-	
+
 	classes: function () {
         debugger;
         var l = []
@@ -144,9 +144,9 @@ _forloop = {
             l.push(this.postclass)
         return l.join(' ')
 	},
-    
+
     _updtotals: function (r) {
-        // Called on total row. 
+        // Called on total row.
         // Update this.value based on preceding rows and any aggregators defined
         // in this.total; return whether to include this total object in result set
         var includerow = this.postclass
@@ -217,6 +217,7 @@ exports.forloop = function (obj, opts) {
 }
 
 function wrap(fn) {
+    // Wrap function so that it can be used as a function filter or as an expression function
     return function (f) {
         if (f instanceof Function) {
             return function () {
@@ -231,14 +232,14 @@ function wrap(fn) {
 exports.bool = function (v) {
 	// Coerce to true/false. lists, empty objects are false like python
 	switch (typeof v) {
-	case 'list': 
+	case 'list':
 		return v.length > 0;
 	case 'object':
 		if (v == null) return true;
 		for (key in v) return true;
 		return false;
 	default:
-		return !!v	
+		return !!v
 	}
 }
 
@@ -266,8 +267,8 @@ function _findtag(s, fn) {
 }
 
 exports.contents = function (s) {
-    return _findtag(s, function (s, start, end) { 
-		return s.slice(start[1].length, end.index) 
+    return _findtag(s, function (s, start, end) {
+		return s.slice(start[1].length, end.index)
 	})
 }
 
@@ -282,7 +283,7 @@ exports.tag = function (tagname, attrs, inner) {
 var _attr = exports._ctx('attr')     // to facilitate internal quoting
 
 exports.attrs = function (attdict, s) {
-    return _findtag(s, function (s, start, end) { 
+    return _findtag(s, function (s, start, end) {
 		var attstr = ''
 		for (var k in attdict) {
 			attstr += ' '+k+'="'+_attr.q(attdict[k])+'"'
@@ -292,6 +293,6 @@ exports.attrs = function (attdict, s) {
 	})
 }
 
-exports.len = function (obj) { 
-    return obj.length 
+exports.len = function (obj) {
+    return obj.length
 }
