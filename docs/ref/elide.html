@@ -1,0 +1,9 @@
+<h1>Elide</h1>
+
+<do process="raw" use="builder::highlight(inner)">
+   &lt;p if>{expr}&lt;/p>
+</do>
+
+<p>This special form of the <code>if</code> attribute will use the substitutions in the tag as the
+basis for the condition, so that if any substitution is empty the whole tag will not appear.
+

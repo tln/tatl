@@ -1,13 +1,14 @@
 {pos ?= {}}
 <h1>Filters</h1>
 
-<p>Expressions can have filters, to alter the output quoting.
-    
-<p>Functions can also have filters, eg for caching. (No function level filters are currently provided!).
-Its usually better to use a return expression.
-     
+<p>Expressions can have filters, to alter the output quoting. In example 1, <code>{greeting|trim}<code> will output the greeting after trimming the excess spaces.
+
+<p>Functions can also have function filters (similar to Python decorators). In example 2, a function named <code>fn</code> is defined that will also remove extra whitespaceGenerally the builtin filters will support being used as function filters or expression filters.
+
 <p>Note that the * is picking up <code>name</code> as a parameter -- free variables
-(eg, not a <code>param<code> target, assigment, or loop iteration variable) will be
+(eg, not a <code>param</code> target, assigment, or loop iteration variable) will be
 added automatically.
-    
+
+<p>Example 3 is a function expression, which is usually preferable to a function filter where both could be used. Function filters are better used for behaviors like caching that change how a function behaves.
+
 {builder::as_code('examples/filters.html')}

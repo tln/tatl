@@ -1,11 +1,18 @@
 <html>
-    <do set="greeting">Hello, {name}</do>
+    <!-- example 1 -->
+    <do set="greeting">
+        Hello, {name}
+    </do>
     {greeting|trim}
-    
-    <do def="fn(*)|cache">Hello, {name}</do>
 
+    <!-- example 2 -->
+    <do def="fn(*)|trim">
+        Hello, {name}
+    </do>
+
+    <!-- example 3 -->
     <do def="fn(*) = trim(.)">
         Hello, {name}
     </do>
-        
+
 </html>

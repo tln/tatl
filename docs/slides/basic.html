@@ -1,5 +1,9 @@
 {pos ?= {}}
-Pretty basic! <code>{{}}</code> are *substitions*. <code>for=</code> and <code>if=</code> are special *attributes*. There are a few more
+The basics: text within <code>{{}}</code> are *substitions*.
+
+<p><code>for=</code> and <code>if=</code> are special *attributes*. <code>for=</code> causes the tag to be repeated, in this case once for each element <code>notices</code>. <code>if=</code> causes the tag to not appear in the output if the condition is true. In this case the condition is whether <code>number</code> is blank or not.
+
+There are a few more
 special attributes, which we'll see in the advanced section. <a href="#{pos.next.counter}">On to {pos.next.value.title ?: "next"} >></a>
 
 {builder::as_code('examples/basic.html')}

@@ -13,6 +13,8 @@
 	"comments.html",
     "filters.html",
 	"placeholders.html",
-	"placeholders2.html"
+	"placeholders2.html",
+    "combos.html",
+    "building_tags.html"
 ]
 }

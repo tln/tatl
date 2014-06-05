@@ -14,7 +14,7 @@
         }
         window.onhashchange = changetab
     });
-    </script>   
+    </script>
     <link rel="stylesheet" href="docs.css" type="text/css" charset="utf-8">
     <style>
     article {display: none;}
@@ -26,6 +26,14 @@
         <nav>
             <a style="float: left;" href="#{.prev.counter}" if>&larr; previous</a>
             <a style="float: right;" href="#{.next.counter}" if>next &rarr;</a>
+			<span>{.value.title ?: .value.name}</span>
+        </nav>
+        {.value.render(.)|tatlrt.safe}
+    </article>
+    <article id="{.value.name}" for="builder::scandir('ref')">
+        <nav>
+            <a style="float: left;" href="#{.prev.name}" if>&larr; previous</a>
+            <a style="float: right;" href="#{.next.name}" if>next &rarr;</a>
 			<span>{.value.title ?: .value.name}</span>
         </nav>
         {.value.render(.)|tatlrt.safe}

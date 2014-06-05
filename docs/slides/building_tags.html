@@ -1,0 +1,10 @@
+{pos ?= {}}
+
+<p>The <code>tag()</code> function helps make dynamic tags. In our example, the
+tag will either be <code>ul</code> or <code>ol</code> depending on a flag.
+
+<p>In a similar fashion, <code>attrs()</code> helps make dynamic attributes.
+
+<p>Finally, <code>contents()</code> will strip off the outer tag.
+
+{builder::as_code('examples/building_tags.html')}
