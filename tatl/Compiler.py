@@ -9,9 +9,9 @@ from tatl import IR
 def run_file(f):
     return run_string(open(f).read())
 
-def compile(s, source, out='py', warn=None):
+def compile(s, source, out='py', warn=None, parser='html.parser'):
     """Return Python that implements the template"""
-    dom = bs4.BeautifulSoup(s)
+    dom = _ensure_html_root(bs4.BeautifulSoup(s, parser))
     c = Compiler(source, warn)
     c.root(dom)
     c.module.done()
@@ -23,7 +23,27 @@ def compile(s, source, out='py', warn=None):
         #HACK!!! this has to be done throughout IR....
         code = code.replace("u'", "'").replace('u"', '"')
     return code
-    
+
+def _ensure_html_root(dom):
+    """Return a DOM that is guaranteed to have a root-level <html> tag"""
+    nontag = 0; tags = []; comments = []
+    for c in dom.contents:
+        if type(c) is bs4.NavigableString:
+            if c.strip():
+                nontag = True
+            tags.append(c)
+        elif type(c) is bs4.Tag:
+            tags.append(c)
+        elif type(c) is bs4.Comment:
+            comments.append(c)
+        else:
+            print "Extra stuff at front", c
+    if nontag or len(tags) != 1 or tags[0].name != 'html':
+        new_root_tag = bs4.Tag(name='html')
+        new_root_tag.contents = tags
+        dom.contents = comments + [new_root_tag]
+    return dom
+
 def main():
     for inp in sys.argv[1:]:
         if not inp.endswith(('.html', '.tatl')):
@@ -34,13 +54,13 @@ def main():
         open(py, 'w').write(compile(html, inp, 'py'))
         js = inp[:-5] + '.js'
         open(js, 'w').write(compile(html, inp, 'js'))
-    
+
 
 class Compiler:
     def __init__(self, source, warn=None):
         self.module = IR.Module(source)
         self.parser = ExprParser.ExprParser(
-            parseinfo=True, 
+            parseinfo=True,
             semantics=ExprSemantics.ExprSemantics()
         )
         self.tags = []
@@ -48,22 +68,22 @@ class Compiler:
         self.fn = None
         if warn:
             self.warn = warn
-        
+
     def root(self, dom):
         self.firsttag = 1
         self._children(self._Tagstate('[root]', None, None), dom)
-        
+
     def startdef(self, funcdef):
         self.lastfn.append(self.fn)
         self.fn = self.module.startdef(funcdef)
-        
+
     def enddef(self):
         self.fn = self.lastfn.pop()
-        
+
     def tag(self, tag):
         if tag.name == 'else':
             return self._else(tag)
-            
+
         ts = self._Tagstate(tag.name, tag.get('id'), self.fn and self.fn.block())
         if tag.name in ('script', 'style'):
             # just output it
@@ -83,13 +103,13 @@ class Compiler:
 
     def _default_for(self, ts):
         return '.'
-        
+
     def _default_def(self, ts):
         return ts.name+'(*)'
-        
+
     def _default_param(self, ts):
         return 'inner' if ts.name == 'do' else ts.name
-        
+
     def _default_set(self, ts):
         return 'inner' if ts.name == 'do' else ts.name + '|contents'
 
@@ -100,8 +120,8 @@ class Compiler:
                 if attr in attrs:
                     self.warn("Attr not allowed on root tag: "+attr)
                     del attrs[attr]
-                    
-    _attrs = 'def', 'param', 'set', 'use', 'for', 'if'
+
+    _attrs = 'def', 'param', 'set', 'use', 'for', 'if', 'process'
     def _process_attrs(self, attrs, ts):
         attrs = attrs.copy()
         self._check_attrs(attrs, ts)
@@ -110,13 +130,19 @@ class Compiler:
             v = self._default(attr, ts, attrs.pop(attr))
             if attr == 'if' and not v:
                     self._process_elide(ts, '')
+            elif attr == 'process':
+                if v in ['raw']:
+                    ts.process = v
+                else:
+                    # ignored silently
+                    raise SyntaxError("Invalid value for process= attribute (%r)" % v)
             else:
                     try:
                         result = self.parser.parse(v, rule_name=attr+'Attr')
                     except:
                         raise SyntaxError("Syntax error on <%s %s='%s'>" % (ts.name, attr, v))
                     getattr(self, '_process_'+attr)(ts, result)
-    
+
         if ts.emit_tag:
             ts.EmitQText('<'+ts.name)
             for attr, val in attrs.items():
@@ -153,7 +179,8 @@ class Compiler:
         if_pending = 0
         elide_pending = 0
         bool_attr = False
-        def __init__(self, name, id, block): 
+        process = "html"
+        def __init__(self, name, id, block):
             self.emit_tag = name != 'do'
             self.name = name
             self.id = id
@@ -190,18 +217,18 @@ class Compiler:
     def _process_elide(self, ts, result):
         ts.ElideStart()
         ts.elide_pending = True
-        
+
     def _process_def(self, ts, funcdef):
         self.startdef(funcdef)
         ts.block = self.fn.block()
         ts.ret = True
 
     def _process_set(self, ts, obj):
-        obj.addto(ts.block)        
+        obj.addto(ts.block)
     def _process_if(self, ts, test):
         test.addto(ts.block)
         ts.if_pending = 1
-        
+
     def _process_param(self, ts, v):
         self.fn.add_params(v)
         if len(v) == 1:
@@ -209,12 +236,12 @@ class Compiler:
 
     def _process_for(self, ts, obj):
         obj.addto(ts.block)
-        
+
     def _process_use(self, ts, ast):
         #import pdb
         #pdb.set_trace()
         ast.addto(ts.block)
-        
+
     def _else(self, tag):
         tags = []
         for ts in self.tags[::-1]:
@@ -225,16 +252,16 @@ class Compiler:
         else:
             self.warn("No if found for <else>")
             return self._children(ts, tag)
-             
+
         if tags:
             self.warn("<else> synthesized tags: "+str(tags))
-        
+
         endtags = ''.join(['</%s>' % t for t in tags])
         starttags = ''.join(['<%s>' % t for t in tags])
 
         ts.EmitQText(endtags)
         self._finish_elide(ts)
-                     
+
         attrs = tag.attrs
         if 'if' in attrs:
             test = self.parser.parse(attrs.pop('if'), rule_name='test')
@@ -248,16 +275,18 @@ class Compiler:
         ts.EmitQText(starttags)
 
         self._children(ts, tag)
-    
+
     def _children(self, ts, tag):
         for c in tag.children:
-            typ = c.__class__ 
-            if typ is bs4.Tag:
+            typ = c.__class__
+            if ts.process == 'raw':
+                ts.EmitQText(unicode(c))
+            elif typ is bs4.Tag:
                 self.tag(c)
             elif typ is bs4.NavigableString:
                 if ts.block is None:
                     if c.strip():
-                        self.warn("Top-level content ignored: %r", c.strip())
+                        self.warn("Top-level content ignored: %r" % c.strip())
                 else:
                     self.parse_text(ts, c)
             elif typ is bs4.Comment and c[:1] == '{':
@@ -282,12 +311,12 @@ class Compiler:
 
     def emit_other(self, ts, c):
         # Emit other kind of node (CData, PI, )
-        #print "emit_other!"
+        print "emit_other!", c
         text = bs4.BeautifulSoup('')
         text.contents.append(c)
         text = unicode(text)
         ts.EmitQText(text)
-    
+
     def parse_text(self, ts, text):
         result = []
         ix = text.find('{')
@@ -306,7 +335,7 @@ class Compiler:
             text = Top.rest
             ix = text.find('{')
         emit(text)
-        
+
     def warn(self, s):
         #TODO pass line number
         print "*Warning:", s

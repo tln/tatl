@@ -12,12 +12,12 @@ def debug(retry):
                 assert not "reached"
             raise
     return inner
- 
+
 class ExprSemantics(ExprParser.ExprParser):
     "Build Python code. Try to eval/compile early to catch issues as parse tree is built."
     def placeholder(self, ast):
         return IR.Placeholder(ast)
-        
+
     def starexp(self, ast):
         return IR.StarExp(ast)
 
@@ -29,21 +29,21 @@ class ExprSemantics(ExprParser.ExprParser):
         for filt in ast.filter or []:
             result = IR.FiltExp(result, filt)
         return result
-        
+
     def setif(self, ast):
         n = ast.var
         fmt = '{0} = %(0)s {1} %(1)s'.format
         result = IR.Part(fmt(n, 'or'), fmt(n, '||'), IR.Expr([n], n, n), ast.expr)
         result.out()
         return result
-    
+
     def lset(self, ast):
         fmt = '%(lvar)s = %(expr)s'
         return IR.Part(fmt, fmt, lvar=ast.lvar, expr=ast.expr)
 
     def dottedPath(self, ast):
         return IR.Path(ast)
-        
+
     def dotPath(self, ast):
         ast[0] = 'dot'
         return self.dottedPath(ast)
@@ -58,7 +58,7 @@ class ExprSemantics(ExprParser.ExprParser):
 
     def pname(self, ast):
         if ast in IR.RESERVED:
-            raise SyntaxError("%r is a reserved name")
+            raise SyntaxError("%r is a reserved name" % ast)
         if ast[:1] == '_':
             raise SyntaxError("names beginning with underscores are reserved")
         return ast
@@ -77,7 +77,7 @@ class ExprSemantics(ExprParser.ExprParser):
 
     def string(self, ast):
         return IR.Value(ast)
-        
+
     def map(self, ast):
         if ast == ['{', '}']:
             return IR.Expr([], '{}')
@@ -85,7 +85,7 @@ class ExprSemantics(ExprParser.ExprParser):
 
     def member(self, ast):
         return IR.Part('%(0)s: %(1)s', '%(0)s: %(1)s', ast.key, ast.val)
-        
+
     def barename(self, name):
         return IR.Value(repr(name))
 
@@ -114,7 +114,7 @@ class ExprSemantics(ExprParser.ExprParser):
             py = ast[:]
             py[::2] = map('%({})s'.format, range(len(args)))
             pyfmt = ' '.join(py)
-            
+
             if len(ast) == 3:
                 jsfmt = '%(0)s '+ ast[1] + ' %(1)s'
             else:
@@ -136,7 +136,7 @@ class ExprSemantics(ExprParser.ExprParser):
         pyfmt = pyop + '_.search(%r, %%(0)s)' % re
         jsfmt = jsop + '_.search(/%s/, %%(0)s)' % re
         return IR.Part(pyfmt, jsfmt, ast.expr)
-        
+
     def ternary(self, ast):
         if not (ast.true or ast.false):
             # test ?
@@ -144,25 +144,25 @@ class ExprSemantics(ExprParser.ExprParser):
         elif ast.true:
             # test ? true  /  test ? true : false
             return IR.Part(
-                '%(true)s if %(test)s else %(false)s', 
+                '%(true)s if %(test)s else %(false)s',
                 '%(test)s ? %(true)s : %(false)s',
-                test=ast.test, true=ast.true, 
+                test=ast.test, true=ast.true,
                 false=ast.false or IR.Expr([], 'None', 'null'),
                 )
         else:
             # test ?: false
             return IR.Part(
-                '(%(test)s or %(false)s)', 
+                '(%(test)s or %(false)s)',
                 '((%(test)s) || (%(false)s))',
                 test=ast.test, false=ast.false
                 )
 
     def list(self, ast):
         if ast == ['[', ']']: return IR.Expr([], '[]')
-        return self._join_with_star(ast, '[%s]', 
-            {'py': '+', 'js':','}, 
+        return self._join_with_star(ast, '[%s]',
+            {'py': '+', 'js':','},
             {'py': '%s', 'js': '[].concat(%s)'})
-    
+
     @debug
     def _join_with_star(self, ast, paren, join, outer='%s'):
         parts = []
@@ -194,11 +194,11 @@ class ExprSemantics(ExprParser.ExprParser):
 
     def arg(self, ast):
         return IR.STAR_ARG if ast == '*' else IR.Lvar(ast)
-        
+
     def arglist(self, ast):
         assert ast.pop() == ')'
         return IR.Args(ast)
-    
+
     # externally called...
     def top(self, ast):
         """
@@ -211,35 +211,35 @@ class ExprSemantics(ExprParser.ExprParser):
     def _rest(self, p):
         if not p: return None  # check!
         return p.buffer.text[p.endpos:]
-        
+
     def defExpr(self, ast):
-        return IR.Def(ast.name, 
-            ast.args or IR.Args([IR.STAR_ARG]), 
-            ast.result, 
+        return IR.Def(ast.name,
+            ast.args or IR.Args([IR.STAR_ARG]),
+            ast.result,
             ast.filter or [])
-        
+
     @debug
     def setExpr(self, ast):
         return IR.Set(ast.var, ast.filter or [])
 
     def ifExpr(self, ast):
         return IR.If(ast.set or [], ast.test)
-        
+
     def forExpr(self, ast):
         if ast.n2:
             stmt = IR.For2(ast.n1, ast.n2, ast.expr)
-        else: 
+        else:
             stmt = IR.For1(ast.n1 or IR.Lvar('dot'), ast.expr)
         return IR.For(ast.set or [], stmt)
-            
+
     def lvar(self, ast):
         return IR.Lvar(ast)
 
     def paramExpr(self, ast):
         return ast
-        
+
     def callargs(self, ast):
-        return [] if ast == ['(', ')'] else ast       
+        return [] if ast == ['(', ')'] else ast
 
     def useExpr(self, ast):
         # step, path, arglist

@@ -33,10 +33,10 @@ def compile():
     reload(ExprSemantics)
     reload(Compiler)
     parser = ExprParser.ExprParser(
-        parseinfo=parseinfo, 
+        parseinfo=parseinfo,
         semantics=ExprSemantics.ExprSemantics()
     )
- 
+
 
 def analyze_cycles(tb):
     while tb is not None:
@@ -50,7 +50,7 @@ def runtests():
         print '(no tests for %s)' % rule
         print
         return
-        
+
     W, H = getTerminalSize()
     maxlen = max(map(len, tests))
     fmt = '%2d> %s | %s'
@@ -85,7 +85,7 @@ def settest(m):
     else:
         tests[ix] = test
     open(TEST % rule, 'w').write('\n'.join(tests)+'\n')
- 
+
 def loadtests():
     global tests
     f = TEST % rule
@@ -93,7 +93,7 @@ def loadtests():
         tests = open(f).read().splitlines()
     else:
         tests = []
-   
+
 def getTerminalSize():
     import os
     env = os.environ
@@ -122,11 +122,11 @@ def getTerminalSize():
         #    cr = (25, 80)
     return int(cr[1]), int(cr[0])
 
-def run(inp, debug=0):  
+def run(inp, debug=0):
     if rule[:2] == 'c.':
         if debug:
             pdb.set_trace()
-        code = Compiler.compile(inp, '<py>', out=out[-2:])
+        code = Compiler.compile(inp, '<py>', out=out[-2:], parser=htmlparser)
         if out == 'runpy':
             d = {}
             exec code in d, d
@@ -148,7 +148,7 @@ def run(inp, debug=0):
         return ast  # warning?
 
 args = sys.argv[1:3]
-rule, out = args + ['attrs', 'py'][len(args):]
+rule, out, htmlparser = args + ['attrs', 'py', 'lxml'][len(args):]
 parseinfo = False
 compile()
 loadtests()
@@ -156,6 +156,7 @@ trace=False
 print '>rule changes rulename'
 print 'trace on|off changes tracing'
 print 'info on|off changes parseinfo'
+print 'parser lxml|html.parser changes HTML parser used by BeautifulSoup'
 print 'No input recompiles'
 e = None
 last = None
@@ -186,6 +187,9 @@ while 1:
         if inp.startswith('out '):
             out = inp[4:]
             inp = last
+        if inp.startswith('parser '):
+            htmlparser = inp[7:]
+            continue
         if inp == 'unused':
             print t_
         if not inp:
