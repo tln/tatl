@@ -1,13 +1,13 @@
 <html param="ordered, elements">
-    <ul use="tag(ordered ? 'ol' : 'ul', .)">
+    <ul use="tag(ordered ? 'ol' : 'ul', inner)">
         <li for="elements">{.}</ul>
     </ul>
 
-    <div use="attrs({id:'a12'}, .)">
+    <div use="attrs({id:'a12'}, inner)">
         Dynamic ID
     </div>
 
-    <div use="contents(.)">
+    <div use="contents(inner)">
         Div will be stripped
     </div>
 </html>
