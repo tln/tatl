@@ -178,6 +178,7 @@ class Compiler:
         ret = None
         if_pending = 0
         elide_pending = 0
+        end_if = False
         bool_attr = False
         process = "html"
         def __init__(self, name, id, block):
@@ -243,6 +244,7 @@ class Compiler:
         ast.addto(ts.block)
 
     def _else(self, tag):
+
         tags = []
         for ts in self.tags[::-1]:
             if ts.emit_tag:
@@ -251,6 +253,9 @@ class Compiler:
                 break
         else:
             self.warn("No if found for <else>")
+            return self._children(ts, tag)
+        if ts.end_if:
+            self.warn("<else> after <else> ignored")
             return self._children(ts, tag)
 
         if tags:
@@ -268,6 +273,7 @@ class Compiler:
             ts.Elif(test)
         else:
             ts.Else()
+            ts.end_if = True
 
         if attrs:
             self.warn("Extraneous attributes on <else/>")
