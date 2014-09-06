@@ -65,10 +65,10 @@ class Case:
         base = os.path.splitext(self.file)[0]
         self.outbase = os.path.join(OUT, base)
         self.expectbase = os.path.join(EXPECT, base)
-        
+
     def read(self):
         return read(self.path)
-        
+
     def out(self, suffix, output, compare=None, update=False):
         if isinstance(output, str):
             # wtf
@@ -93,7 +93,7 @@ class Case:
             else:
                 return compare(outf, expectf)
         return outf
-        
+
     def front_matter(self):
         try:
             return front_matter(self.path)
@@ -124,17 +124,17 @@ def test_tatl():
 class Runner:
     def __init__(self, update):
         self.update = update
-        
+
     def log(self, *args):
         pass
-        
+
     def skipped(self, test):
         self.log('Skipped:', test.file)
         return True
-        
+
     def start(self, test):
         self.log('----', test.path)
-        
+
     def warn(self, text):
         if text in self.expected_warnings:
             if self.expected_warnings.index(text) > 0:
@@ -142,19 +142,19 @@ class Runner:
             self.expected_warnings.remove(text)
         else:
             self.log('Unexpected warning:', text)
-        
+
     def runpy_failed(self, test, py):
         print "Error running", test.path
         raise
-        
+
     def runtest(self, test):
         self.start(test)
-        
+
         fm = test.front_matter()
         if fm.get('test') == 'skip':
             return self.skipped(test)
         self.expected_warnings = fm.get('expect', {}).get('warn', [])
-        
+
         inp = test.read()
         self.log(inp)
         pyrun = jsrun = None
@@ -176,7 +176,7 @@ class Runner:
                 pyrun = self.runpy_failed(test, py)
             pyout = test.out('.py.html', pyrun, self.compare, self.update)
             self.log('->', c)
-            
+
         try:
             js = Compiler.compile(inp, test.file, out='js', warn=self.warn)
         except:
@@ -187,24 +187,24 @@ class Runner:
             self.log('->', c)
             jsrun = runjs(js).rstrip() + '\n'
             jsout = test.out('.js.html', jsrun, self.compare, self.update)
-            
+
         if pyrun and jsrun and pyrun != jsrun:
             self.run_mismatch(pyout, jsout)
         return self.done(test)
-    
+
     def compile_fail(self, inp, test, target):
         print 'Compile failed:', test.path, '->', target
         raise
-    
+
     def compare(self, outf, expectf):
         # files do not match - return outf to keep processing
         raise AssertionError("%s != %s" % (outf, expectf))
-    
+
     def done(self, test):
         for w in self.expected_warnings:
             self.log('Expected warning:', w)
         return True
-            
+
     def run_mismatch(self, pyout, jsout):
         self.log("WARNING: %s and %s output should match" % (pyout, jsout))
         self.log("diff", pyout, jsout)
@@ -212,11 +212,11 @@ class Runner:
 
 class VerboseRunner(Runner):
     fail = mismatch = 0
-    
+
     def start(self, test):
         self.log('----', test.path)
         self.fail = self.mismatch = 0
-    
+
     def log(self, *args):
         print ' '.join(map(unicode, args))
 
@@ -229,13 +229,13 @@ class VerboseRunner(Runner):
     def done(self, test):
         self.log("head %s.*" % test.outbase)
         return not (self.fail or self.mismatch)
- 
+
     def run_mismatch(self, pyout, jsout):
         self.mismatch = 1
         self.log("WARNING: %s and %s output should match" % (pyout, jsout))
         self.log("diff", pyout, jsout)
         self.log(os.popen("diff %s %s" % (pyout, jsout)).read().decode('utf8'))
-    
+
     def compile_fail(self, inp, test, target):
         print 'Compile failed:', test.path, '->', target
         traceback.print_exc()
@@ -243,7 +243,7 @@ class VerboseRunner(Runner):
         print inp
         print '-----'
         self.fail = True
-        
+
     def runpy_failed(self, test, py):
         print 'Runpy failed:', test.path,
         traceback.print_exc()
@@ -251,19 +251,19 @@ class VerboseRunner(Runner):
         print py
         print '-----'
         self.fail = True
-    
+
 class VerboseOnFailRunner(VerboseRunner):
     logs = None
     def log(self, *args):
         if self.logs is None:
             self.logs = []
         self.logs.append(args)
-    
+
     def start(self, test):
         VerboseRunner.start(self, test)
         print '----', test.path
         self.logs = []
-    
+
     def done(self, test):
         r = VerboseRunner.done(self, test)
         if not r:
@@ -292,18 +292,18 @@ def runjs(jscode):
 if __name__ == '__main__':
     print "Running tests... (pass -u to update)"
     io = cStringIO.StringIO()
-    
+
     import sys
     sys.path.append('.')   # include tatlrt.py
     sys.path.append('tests/out') # so that test can import each other
-    
+
     ExprSemantics.DEBUG = True
-    
+
     args = sys.argv[1:]
     update = '-u' in args
     if update: args.remove('-u')
     verbose = '-v' in args
-    if verbose: 
+    if verbose:
         args.remove('-v')
         runner = VerboseOnFailRunner(update)
     else:
