@@ -6,16 +6,16 @@ class Block:
         self.top = top
         self.bot = OpList()
         self.parent = parent
-        
+
     def __repr__(self):
         return '<block @%x parent=%r>' % (id(self), self.parent)
-        
+
     def done(self):
         #print 'Done:', repr(self)
         self.top.combine(self.bot)
         self.bot = None
         return self.top
-        
+
     def __del__(self):
         if self.bot:
             print 'Warning: Block.done() not called on', repr(self)
@@ -32,14 +32,14 @@ class Op:
     def check(self, warn, lvars, functions):
         # check the expression/op
         # lvars is the lvars up to this op in function.
-        # May add rvars on self; any rvars on the op will 
-        # be added as parameters after this call 
+        # May add rvars on self; any rvars on the op will
+        # be added as parameters after this call
         pass
-        
+
 class Code(unicode):
     dedent = 0
     indent = 0
-    
+
 class Indent(Code):
     indent = 1
 
@@ -49,33 +49,33 @@ class Dedent(Code):
 class DedentThenIndent(Code):
     dedent = 1
     indent = 1
-        
+
 class BasePart(Op):
-    """Represents part of our AST. Renders early to py or js, keeps 
+    """Represents part of our AST. Renders early to py or js, keeps
     tracks of lvars and rvars of itself and children.
     """
     py = js = '*not implemented*'
     def __init__(self):
         self.lvars = []
         self.rvars = []
-        
+
     def add(self, part):
         self.lvars.extend(part.lvars)
         self.rvars.extend(part.rvars)
-        
+
     def __str__(self):
         #TODO remove
         print 'str called -> %r' % self.py
         return self.py
-        
+
     def __repr__(self):
         return '<%s>' % self.out().replace('\n', ' ')
-        
+
     Code = Code
     def code(self, target):
         assert target in ('py', 'js')
         return self.Code(getattr(self, target))
-        
+
     type = ''
     def out(self):
         l = []
@@ -113,18 +113,18 @@ class ArgExpr(BasePart):
         self.__dict__.update(d)
         self.lvars = [d[k] for k in self.lvarfields]
         self.rvars = [d[k] for k in self.rvarfields]
-        
+
     def __repr__(self):
         n = self.__class__.__name__
         args = tuple(getattr(self, attr) for attr in self.fields)
         return n + str(args)
-        
+
     def code(self, target):
         fmt = getattr(self, target+'fmt')
         return self.Code(fmt % self.__dict__)
 
 class Part(BasePart):
-    
+
     def __init__(self, pyfmt, jsfmt, *parts, **partkw):
         BasePart.__init__(self)
         pyfrags = {}
@@ -147,7 +147,7 @@ class ArgPart(BasePart):
         assert len(args) == len(self.fields)
         self.__dict__.update(dict(zip(self.fields, args)))
         map(self.add, args)
-    
+
     def code(self, target):
         fmt = getattr(self, target+'fmt')
         d = dict([
@@ -155,7 +155,7 @@ class ArgPart(BasePart):
             for f in self.fields
         ])
         return self.Code(fmt % d)
-    
+
 class List(BasePart):
     def __init__(self, partlist, join=', ', paren='%s'):
         BasePart.__init__(self)
@@ -163,14 +163,14 @@ class List(BasePart):
         self.join = join
         self.paren = paren
         map(self.add, partlist)
-        
+
     def code(self, target):
         value = lambda s: s[target] if isinstance(s, dict) else s
         return value(self.paren) % value(self.join).join(
-            p.code(target) 
+            p.code(target)
             for p in self.partlist
         )
-        
+
 class Lvar(BasePart):
     def __init__(self, lvar):
         BasePart.__init__(self)
@@ -185,28 +185,28 @@ class Asgn(Part):
             expr = Expr([expr], expr, expr)
         fmt = '%(lvar)s = %(expr)s'
         Part.__init__(self, fmt, fmt, lvar=lvar, expr=expr)
-        
+
 class Expr(BasePart):
     def __init__(self, rvars, py, js=None):
         BasePart.__init__(self)
         self.py = py
         self.js = js or py
         self.rvars = rvars
-        
+
 class Value(BasePart):
     def __init__(self, py, js=None):
-        BasePart.__init__(self)        
+        BasePart.__init__(self)
         self.py = py
         self.js = js or py
 
 class Impl(BasePart):
     "Reference to implementation variable"
     def __init__(self, py, js=None):
-        BasePart.__init__(self)        
+        BasePart.__init__(self)
         self.py = py
         self.js = js or py
-    
- 
+
+
 class Wrap(BasePart):
     def __init__(self, part):
         BasePart.__init__(self)
@@ -222,7 +222,7 @@ class Out:
         for k in self._fields:
             v = getattr(self, k)
             if v and isinstance(v, list):
-                l += [('%s[%s]' % (k, ix), v.out() if hasattr(v, 'out') else str(v)) 
+                l += [('%s[%s]' % (k, ix), v.out() if hasattr(v, 'out') else str(v))
                       for ix, v in enumerate(v)]
             else:
                 v = v.out() if hasattr(v, 'out') else str(v)
@@ -240,11 +240,11 @@ class Pass(BasePart):
     py = 'pass'
 def join(fn):
     return lambda *args, **kw: '\n'.join(fn(*args, **kw))
-    
+
 class OpList:
     def __init__(self):
         self.ops = []
-                
+
     def __nonzero__(self):
         return bool(self.ops)
 
@@ -277,7 +277,7 @@ class OpList:
             i -= code.dedent
             yield '    '*i + code
             i += code.indent
-    
+
     def add(self, *ops):
         if not ops: return
         cur = self.ops
@@ -286,13 +286,13 @@ class OpList:
         cur.extend(ops)
 
     def combine(self, other):
-        self.ops.extend(other.ops)    
-    
+        self.ops.extend(other.ops)
+
     def optimize(self):
         for cls in self.optimizers():
             cls(self.ops).optimize()
         return self
 
     def optimizers(self):
-        return []        
+        return []
 
