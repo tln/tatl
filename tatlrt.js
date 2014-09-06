@@ -108,6 +108,19 @@ var _proto = {
     applyargs: function (self, func) {
         var rest = Array.prototype.slice.call(arguments, 2)
         return func.apply(self, rest)
+    },
+    applyautoexpr: function (func) {
+        // determine func argument names
+        // return expression where all func argument names are passed
+        // avoid ReferenceErrors -- use "typeof VAR == 'undefined' ? undefined : VAR"
+        // caller will eval() the returned expression
+        var ARGUMENT_NAMES = /([^\s,]+)/g;
+        var s = func.toString().replace(/(\/\/.*$|\/\*[\s\S]*?\*\/)/mg, '')
+        var args = s.slice(s.indexOf('(')+1, s.indexOf(')')).match(ARGUMENT_NAMES)
+        args = args.map(function f(arg) {
+            return 'typeof '+arg+' == "undefined" ? undefined : '+arg
+        })
+        return func.name + '(' + args.join(',') + ')'
     }
 }
 var _tag = {
@@ -189,7 +202,6 @@ exports.sum = function (values) {
 }
 exports.forloop = function (obj, opts) {
 	var r = [], last = {}, cur, i = 0, keys = _keys(obj)
-    var keyadd = obj.length ? 1 : '' // .key should match .counter when looping over list
 	opts = opts || {}
 	opts.__proto__ = _forloop
     total = {post: true, __proto__: opts}
@@ -200,7 +212,7 @@ exports.forloop = function (obj, opts) {
 		r.push(cur = {
 			counter0: i,
 			counter: i+1,
-            key: key+keyadd,
+            key: key,
 			value: obj[key],
 			first: i == 0,
 			last: i == keys.length-1,
@@ -268,11 +280,15 @@ function _findtag(s, fn) {
 
 exports.contents = function (s) {
     return _findtag(s, function (s, start, end) {
-		return s.slice(start[1].length, end.index)
+		return s.slice(start[0].length, end.index)
 	})
 }
 
 exports.tag = function (tagname, attrs, inner) {
+    if (inner === undefined) {
+        inner = attrs;
+        attrs = {}
+    }
 	var attstr = ''
 	for (var k in attrs || {}) {
 		attstr += ' '+k+'="'+_attr.q(attrs[k])+'"'

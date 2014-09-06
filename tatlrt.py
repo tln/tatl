@@ -189,7 +189,7 @@ class _Context(object):
         try:
             m = obj.items
         except AttributeError:
-            return ((x+1, y) for x, y in enumerate(obj))
+            return enumerate(obj)
         else:
             return sorted(m())
 
