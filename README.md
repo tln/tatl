@@ -197,15 +197,19 @@ Built in filters
 
 Needed and Possible changes
 
-* Finish JS compat (see: `for file in tests/out/*.py; do diff -u ${file%.*}.*.html; done`)
+* Remove u'' -> '' JS hack
+* Placeholders -- need fixes
 * Limit loading to specified modules
 * IR /OpList -- lvars / rvars etc should be lazy per target like code(). Move all code out of ExprSemantics. Simplify the logic, there are too many base classes.
 * packaging... npm, pip?
+* Watch compiler
+* Client code to reload changes
+* Generate shadow dom code eg mithril
 * The parser. bs4 + lxml adds <html><body><p> and loses line info. HTMLParsers() requires sax rewrite but seems more reliable.
 * More python versions... 3.4, maybe 2.6?
-* js - use string concatenation. Its miles faster on browsers.
+* js - use string concatenation. It's miles faster on browsers.
 * Babel? Whats the JS solution?
-* Placeholders -- need fixes
 * any and all -- boolean quantifiers
 * Expand front matter to use built-in value syntax, (which is basically JSON5). // and /* */ Comments
 * Further builtins... min, max, reversed, sorted, zip... groupby, batch...
+* for x in y by ... -- built in sort. This would allow unsorted iteration.
