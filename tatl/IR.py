@@ -506,7 +506,7 @@ class UseEndAuto(BasePart):
         else:
             expr = Part(
                 '_emit(_.applyauto(%(0)s, locals()))',
-                '_.emit(eval(_.applyautoexpr(%(0)s)))',
+                'var func = %(0)s; _.emit(eval(_.applyautoexpr("func", func)))',
                 self.expr)
         return expr.code(target)
 
