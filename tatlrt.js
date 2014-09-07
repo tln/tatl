@@ -13,6 +13,7 @@ exports._bind = function(f) {
 	// later...
 	var f2 = f.bind({})
 	f2.call = f.call.bind(f)
+    f2.orig = f
 	return f2
 }
 exports.range = function (n,m,incl) {
@@ -109,18 +110,19 @@ var _proto = {
         var rest = Array.prototype.slice.call(arguments, 2)
         return func.apply(self, rest)
     },
-    applyautoexpr: function (func) {
+    applyautoexpr: function (name, func) {
         // determine func argument names
         // return expression where all func argument names are passed
         // avoid ReferenceErrors -- use "typeof VAR == 'undefined' ? undefined : VAR"
         // caller will eval() the returned expression
+        var func = func.orig || func; // Go past the function layer added by _bind
         var ARGUMENT_NAMES = /([^\s,]+)/g;
         var s = func.toString().replace(/(\/\/.*$|\/\*[\s\S]*?\*\/)/mg, '')
-        var args = s.slice(s.indexOf('(')+1, s.indexOf(')')).match(ARGUMENT_NAMES)
+        var args = s.slice(s.indexOf('(')+1, s.indexOf(')')).match(ARGUMENT_NAMES) || []
         args = args.map(function f(arg) {
             return 'typeof '+arg+' == "undefined" ? undefined : '+arg
         })
-        return func.name + '(' + args.join(',') + ')'
+        return name + '(' + args.join(',') + ')'
     }
 }
 var _tag = {
