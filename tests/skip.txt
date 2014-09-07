@@ -1,0 +1,3 @@
+tests/star1.html
+docs/examples/placeholders.html
+docs/examples/placeholders2.html

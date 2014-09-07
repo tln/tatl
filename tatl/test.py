@@ -14,6 +14,7 @@ RULE = 'attrs'
 TESTDIRS = ['tests/*.html', 'docs/examples/*.html']
 OUT = 'tests/out/'
 EXPECT = 'tests/expect/'
+EXCLUDE = 'tests/skip.txt'
 
 def test_grammar(update=0):
     parser = ExprParser.ExprParser(
@@ -114,9 +115,14 @@ def test_tatl():
     # yield our test cases so that nosetests sees them as individual cases
     if not os.path.exists(OUT): os.makedirs(OUT)
     if not os.path.exists(EXPECT): os.makedirs(EXPECT)
+    try:
+        with open(EXCLUDE) as f:
+            exclude = set(f.read().splitlines())
+    except:
+        exclude = set()
     tests = []
     for pattern in TESTDIRS:
-        tests += map(Case, glob.glob(pattern))
+        tests += [Case(f) for f in glob.glob(pattern) if f not in exclude]
     runtest = Runner(False).runtest
     for test in tests:
         yield runtest, test
@@ -295,7 +301,7 @@ if __name__ == '__main__':
 
     import sys
     sys.path.append('.')   # include tatlrt.py
-    sys.path.append('tests/out') # so that test can import each other
+    sys.path.append('tests/out') # so that tests can import each other
 
     ExprSemantics.DEBUG = True
 
