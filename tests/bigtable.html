@@ -5,9 +5,9 @@
 }-->
 <table def>
     <tr param="table" for>
-		<do for="k, v in .">
+		<do for="k, v in . #unsorted">
         	<td>{k}</td>
-        	<td>{v}</td>
+            <td>{v|safe}</td>
 		</do>
     </tr>
 </table>
