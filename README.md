@@ -30,6 +30,8 @@ Extended attributes:
 	for="key, value in expr"
 		When iterating over a map, gives key and value (sorted by key). When iterating over a list,
         gives index, value where index is 0-based.
+	for="key, value in expr #unsorted"
+		As above, but the keys and value are unsorted.
 	for="var = expr; var2 = expr; key in expr"
 		Set some variables before evaluating the expr
 
@@ -163,9 +165,14 @@ Special tags / quoting
 	<!-- -->
 		Content within comments is not processed, and is not included in the document.
 	<!--[ ]-->
-		Content within comments beginning with [ is not included in the document.
+		Content within comments beginning with [ is included in the document.
 	<!--{ }-->
 		Comments beginning with { are parsed as JSON to form front matter.
+    # comment
+        Comments starting with a hash sign can also appear at the end of special attributes
+        and substitutions ({}).
+    {# Another comment}
+
 
 	<html param= use= def=>
 		Only a few attrs are allow on the <html> root tag. There is an implied def="html(*)".
@@ -198,6 +205,7 @@ Built in filters
 Needed and Possible changes
 
 * Remove u'' -> '' JS hack
+* Contextual quoting
 * Placeholders -- need fixes
 * Limit loading to specified modules
 * IR /OpList -- lvars / rvars etc should be lazy per target like code(). Move all code out of ExprSemantics. Simplify the logic, there are too many base classes.

@@ -205,6 +205,9 @@ class ExprSemantics(ExprParser.ExprParser):
         top = '{' {set+:set ';'} {exprs+:expr ';'} emit:[ topemitexpr ] '}' ;
         topemitexpr = star:placeholder | filtexp:expr ;
         """
+        if not hasattr(ast, 'parseinfo'):
+            import pdb
+            pdb.set_trace()
         rest = self._rest(ast.parseinfo)
         return IR.Top(ast.set or [], ast.exprs or [], ast.emit, rest)
 
@@ -230,6 +233,8 @@ class ExprSemantics(ExprParser.ExprParser):
             stmt = IR.For2(ast.n1, ast.n2, ast.expr)
         else:
             stmt = IR.For1(ast.n1 or IR.Lvar('dot'), ast.expr)
+        if ast.pragma:
+            stmt.pragma(ast.pragma[1:].strip())
         return IR.For(ast.set or [], stmt)
 
     def lvar(self, ast):

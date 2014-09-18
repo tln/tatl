@@ -5,7 +5,7 @@ GRAKOCMD = "grako -o tatl/ExprParser.py grammar/Expr.ebnf"
 if not os.path.exists('tatl/ExprParser.py'):
     os.system(GRAKOCMD)
 
-from tatl import ExprParser, ExprSemantics, Compiler, IR, OpList
+from tatl import ExprParser, ExprSemantics, Compiler, IR, OpList, peephole
 import json
 import os, sys, re
 import readline
@@ -32,6 +32,7 @@ def compile():
     reload(IR)
     reload(ExprSemantics)
     reload(Compiler)
+    reload(peephole)
     parser = ExprParser.ExprParser(
         parseinfo=parseinfo,
         semantics=ExprSemantics.ExprSemantics()

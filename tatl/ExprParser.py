@@ -12,7 +12,7 @@ from __future__ import print_function, division, absolute_import, unicode_litera
 from grako.parsing import * # @UnusedWildImport
 from grako.exceptions import * # @UnusedWildImport
 
-__version__ = '14.063.17.46.22'
+__version__ = '14.261.22.55.40'
 
 class ExprParser(Parser):
     def __init__(self, whitespace=None, nameguard=True, **kwargs):
@@ -101,6 +101,8 @@ class ExprParser(Parser):
             self._filter_()
             self.ast.add_list('filter', self.last_node)
         self._closure(block3)
+        with self._optional():
+            self._COMMENTQ_()
 
     @rule_def
     def _arglist_(self):
@@ -146,12 +148,16 @@ class ExprParser(Parser):
             self._filter_()
             self.ast.add_list('filter', self.last_node)
         self._closure(block1)
+        with self._optional():
+            self._COMMENTQ_()
 
     @rule_def
     def _forExpr_(self):
         def block0():
             self._set_()
             self.ast.add_list('set', self.last_node)
+            with self._optional():
+                self._COMMENTSQ_()
             self._token(';')
         self._closure(block0)
         with self._optional():
@@ -164,16 +170,27 @@ class ExprParser(Parser):
             self._token('in')
         self._expr_()
         self.ast['expr'] = self.last_node
+        with self._optional():
+            self._forpragma_()
+            self.ast['pragma'] = self.last_node
+
+    @rule_def
+    def _forpragma_(self):
+        self._COMMENTQ_()
 
     @rule_def
     def _ifExpr_(self):
         def block0():
             self._set_()
             self.ast.add_list('set', self.last_node)
+            with self._optional():
+                self._COMMENTSQ_()
             self._token(';')
         self._closure(block0)
         self._test_()
         self.ast['test'] = self.last_node
+        with self._optional():
+            self._COMMENTQ_()
 
     @rule_def
     def _paramExpr_(self):
@@ -184,12 +201,16 @@ class ExprParser(Parser):
             self._lvar_()
             self.ast.add_list('@', self.last_node)
         self._closure(block1)
+        with self._optional():
+            self._COMMENTQ_()
 
     @rule_def
     def _useExpr_(self):
         def block0():
             self._set_()
             self.ast.add_list('set', self.last_node)
+            with self._optional():
+                self._COMMENTSQ_()
             self._token(';')
         self._closure(block0)
         self._path_()
@@ -197,6 +218,8 @@ class ExprParser(Parser):
         with self._optional():
             self._callargs_()
             self.ast['arglist'] = self.last_node
+        with self._optional():
+            self._COMMENTQ_()
 
     @rule_def
     def _callargs_(self):
@@ -219,6 +242,8 @@ class ExprParser(Parser):
         def block0():
             self._set_()
             self.ast.add_list('set', self.last_node)
+            with self._optional():
+                self._COMMENTSB_()
             self._token(';')
         self._closure(block0)
         with self._group():
@@ -237,7 +262,16 @@ class ExprParser(Parser):
                             self._topemitexpr_()
                             self.ast['emit'] = self.last_node
                 self._error('no available options')
+        with self._optional():
+            self._commentb_()
+            self.ast['commentb'] = self.last_node
+        pass
+        self.ast['dummy'] = self.last_node
         self._token('}')
+
+    @rule_def
+    def _commentb_(self):
+        self._COMMENTB_()
 
     @rule_def
     def _set_(self):
@@ -636,6 +670,22 @@ class ExprParser(Parser):
         self._name_()
 
     @rule_def
+    def _COMMENTQ_(self):
+        self._pattern(r'#[^"]*')
+
+    @rule_def
+    def _COMMENTSQ_(self):
+        self._pattern(r'#[^";]*')
+
+    @rule_def
+    def _COMMENTB_(self):
+        self._pattern(r'#[^}]*')
+
+    @rule_def
+    def _COMMENTSB_(self):
+        self._pattern(r'#[^};]*')
+
+    @rule_def
     def _NAME_(self):
         self._pattern(r'[a-zA-Z][a-zA-Z0-9_]*')
 
@@ -749,6 +799,9 @@ class ExprSemantics(object):
     def forExpr(self, ast):
         return ast
 
+    def forpragma(self, ast):
+        return ast
+
     def ifExpr(self, ast):
         return ast
 
@@ -762,6 +815,9 @@ class ExprSemantics(object):
         return ast
 
     def top(self, ast):
+        return ast
+
+    def commentb(self, ast):
         return ast
 
     def set(self, ast):
@@ -861,6 +917,18 @@ class ExprSemantics(object):
         return ast
 
     def barename(self, ast):
+        return ast
+
+    def COMMENTQ(self, ast):
+        return ast
+
+    def COMMENTSQ(self, ast):
+        return ast
+
+    def COMMENTB(self, ast):
+        return ast
+
+    def COMMENTSB(self, ast):
         return ast
 
     def NAME(self, ast):

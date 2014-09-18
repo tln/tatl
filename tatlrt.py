@@ -15,6 +15,13 @@ def public(obj):
     __all__.append(obj.__name__)
     return obj
 
+try:
+    from fastbuf import Buf
+    bufjoin = unicode
+except:
+    Buf = list
+    bufjoin = u''.join
+
 # Compiler generates calls to tatlrt.bool, but it isnt a builtin that templates need to use.
 # TATL defines truthiness just like Python, so re=using the builtin works; tatlrt.js implements
 # Python-compatible logic.
@@ -65,7 +72,7 @@ def _quote_other(o, q=_quote_str):
     Lists are space separated, dictionaries are repr-ed
     """
     if isinstance(o, (tuple, list)):
-        return ' '.join([q(unicode(item)) for item in o])
+        return q(' '.join(map(unicode, o)))
     return q(unicode(o))
 
 # Context objects, most compiler code constructs go through one of these
@@ -87,16 +94,32 @@ class _Context(object):
             unicode: _quote_str,
         }),
     }
+    quote = None
 
     def __init__(self, ctxname):
         self.qstack = [0]  # track whether .quote has been called with an empty value
-        self.estack = [[]] # stack of emit lists
-        self.emit = self.estack[-1].append   # adds to bottom list; called a lot
+        self.estack = [] # stack of bufs
+        self.mkquote(ctxname)
+        self.push()
         self.get1 = _get1
-        self.quote = unicode
-        self.qcache = {}
-        self.cstack = []   # stack quote functions
-        self.pushctx(ctxname)
+        ##self.quote = unicode
+        #self.cstack = []   # stack quote functions
+        #self.qcache = {}
+        #self.pushctx(ctxname)
+        #self.itemsUnsorted = dict.iteritems  # debug
+
+    def buffer(self):
+        return None if Buf is list else self.buf
+
+    def mkquote(self, ctxname):
+        # Build a quoting function from type switches
+        from collections import defaultdict
+        default, typesdict = self.q[ctxname]
+        d = defaultdict(lambda:default, self.q_def)
+        d.update(typesdict)
+        d[None.__class__] = self._none
+        d[bool] = self._bool
+        self.quote = lambda obj: d[obj.__class__](obj)
 
     def pushctx(self, ctxname):
         self.cstack.append(self.quote)
@@ -111,8 +134,7 @@ class _Context(object):
             d[None.__class__] = self._none
             d[bool] = self._bool
             def quote(obj):
-                return d[obj.__class__](obj)
-            quote.d = d
+                return d[type(obj)](obj)
             self.quote = self.qcache[ctxname] = quote
 
     def popctx(self):
@@ -128,34 +150,34 @@ class _Context(object):
         return ''
 
     def push(self):
-        self.estack.append([])
-        e = self.emit = self.estack[-1].append
-        return e
+        self.estack.append(Buf())
+        b = self.buf = self.estack[-1]
+        e = self.emit = b.append
+        return e, self.buffer()
 
     def star(self):
-        return _Star(self.estack[-1], self.quote), self.push()
+        return _Star(self.estack[-1], self.quote), + self.push()
 
     def plusplus(self):
-        return _Plusplus(self.estack[-1]), self.push()
+        return _Plusplus(self.estack[-1]), + self.push()
 
     def pop(self):
-        e = self.emit = self.estack[-2].append
-        return safe(''.join(self.estack.pop())), e
+        result = safe(bufjoin(self.buf))
+        self.estack.pop()
+        b = self.buf = self.estack[-1]
+        e = self.emit = b.append
+        return result, e, self.buffer()
 
     def result(self):
-        try:
-            return safe(''.join(map(''.join, self.estack)))
-        except:
-            warn('Error in estack!')
-            return ''.join([''.join(map(unicode, l)) for l in self.estack])
+        return safe(''.join(map(bufjoin, self.estack)))
 
     def elidestart(self):
         self.qstack.append(0)
         return self.push()
 
     def elidecheck(self):
-        c, e = self.pop()
-        return not self.qstack.pop(), c, e
+        c, e, b = self.pop()
+        return not self.qstack.pop(), c, e, b
 
     def load(self, name, path):
         o = __import__(name)   # TODO we need a whitelist here
@@ -192,6 +214,16 @@ class _Context(object):
             return enumerate(obj)
         else:
             return sorted(m())
+
+    def itemsUnsorted(self, obj):
+        if obj is None:
+            return ()
+        try:
+            m = obj.items
+        except AttributeError:
+            return enumerate(obj)
+        else:
+            return m()
 
     def iter(self, obj):
         if obj is None or obj == '':
@@ -273,7 +305,7 @@ class _Plusplus:
 
 def _ctx(name):
     c = _Context(name)
-    return c, c.quote, c.emit
+    return c, c.quote, c.emit, c.buffer()
 
 _attr = _Context('attr')
 # forloop, swiss army knife of looping

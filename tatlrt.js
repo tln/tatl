@@ -34,13 +34,13 @@ exports.safe = function (s) {
 	return s
 }
 
-function _keys(object) {
+function _keys(object, unsorted) {
     if (object.length != undefined) {
         return exports.range(0, object.length, false)
     } else {
         var l = []
         for (k in object) l.push(k)
-        l.sort()
+        if (!unsorted) l.sort()
         return l
     }
 }
@@ -100,6 +100,7 @@ var _proto = {
 		return this.get(require('./tests/out/'+module), paths)
 	},
     keys: _keys,
+    keysUnsorted: function (object) { return _keys(object, true); },
     search: function (regex, object) {
         if (typeof object == 'string' || object instanceof String) {
             return regex.test(object)

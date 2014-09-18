@@ -30,7 +30,8 @@ use="var1 = expr; var12 = expr; template::html"
 {var1 = path}
 {var1 = "value"}}
 {var1 = expr}
-{var1 = .path(); var12}
+{var1 = expr;}
+{var1 = .path(); func(x); var12}
 {var1 ?= default}
 {1...5}
 {0..5}
@@ -58,3 +59,12 @@ use="var1 = expr; var12 = expr; template::html"
 {{a:1,b:"2",*c,d:[1,2,3]}}
 {*:foo}
 {++:foo}
+{}
+{#hi}
+{var1 #hi}
+{var=value #hi}
+{var=value; #hi}
+{var1 = expr; y #hi}
+{var1 = expr; x; y #hi}
+{var1 = expr; y | filt #hi}
+{var1 = expr; ++:y #hi}

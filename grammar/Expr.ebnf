@@ -3,7 +3,7 @@
 The special attributes use *Attr rules. The substitutions use 'top'.
 'attrs' is used for testing.
 
-Rules are indented underneath the rule where they are first referenced; 
+Rules are indented underneath the rule where they are first referenced;
 if they refer to a rule further up, a comment on left margin indicates the
 rule.
 
@@ -22,29 +22,31 @@ setAttr = setExpr $ ;
 useAttr = useExpr $ ;
 
 (* For testing *)
-attrs = 'def="' @defExpr '"' 
+attrs = 'def="' @defExpr '"'
 	| 'for="' @forExpr '"'
-    | 'if="' @ifExpr '"' 
+    | 'if="' @ifExpr '"'
 	| 'param="' @paramExpr '"'
-	| 'set="' @setExpr '"' 
-	| 'use="' @useExpr '"' 
+	| 'set="' @setExpr '"'
+	| 'use="' @useExpr '"'
 	| top ;
 
-defExpr = name:lvar [args:arglist] ['=' result:expr] {filter+:filter} ;
+defExpr = name:lvar [args:arglist] ['=' result:expr] {filter+:filter} [COMMENTQ] ;
 	arglist = '(' [@+:arg {',' @+:arg} [',']] @+:')' ;
 	arg = @name | @'*' ;
 	name = NAME | '.';
-setExpr = var:lvar {filter+:filter};
-forExpr = {set+:set ';'} [n1:lvar [',' n2:lvar] 'in'] expr:expr ;
-ifExpr = {set+:set ';'} test:test ;
-paramExpr = @+:lvar {',' @+:lvar} ;
-useExpr = {set+:set ';'} path:path [arglist:callargs];
+setExpr = var:lvar {filter+:filter} [COMMENTQ];
+forExpr = {set+:set [COMMENTSQ] ';'} [n1:lvar [',' n2:lvar] 'in'] expr:expr [pragma:forpragma];
+    forpragma = COMMENTQ;
+ifExpr = {set+:set [COMMENTSQ] ';'} test:test [COMMENTQ];
+paramExpr = @+:lvar {',' @+:lvar} [COMMENTQ];
+useExpr = {set+:set [COMMENTSQ] ';'} path:path [arglist:callargs] [COMMENTQ];
 	callargs = '(' [@+:expr {',' @+:expr} [',']] ')';
 
 (* Substitutions use this rule *)
-top = '{' {set+:set ';'} (set+:set | ({exprs+:expr ';'} [emit:topemitexpr])) '}';
+top = '{' {set+:set [COMMENTSB] ';'} (set+:set | ({exprs+:expr ';'} [emit:topemitexpr])) [commentb:commentb] dummy:() '}';
+    commentb = COMMENTB;
 
-	set = lset | setif ;
+	set = lset | setif;
 	lset = lvar:lvar '=' expr:expr ;
 		lvar = name ;
 	setif = var:name ('=?'|'?=') expr:expr ;
@@ -58,11 +60,11 @@ top = '{' {set+:set ';'} (set+:set | ({exprs+:expr ';'} [emit:topemitexpr])) '}'
 	expr = ternary | range | simpleexpr;
 
 		ternary = test:test ('?' [true:expr] [':' false:expr]);
-(*expr*)	test = regex | comp ;   
+(*expr*)	test = regex | comp ;
 				regex = expr:simpleexpr op:('~!'|'!~'|'~') re:relit ;
 					relit = REGEX ;
-				comp = @+:simpleexpr ( {@+:compop @+:simpleexpr}+ 
-				                     | [@+:eqop @+:simpleexpr] 
+				comp = @+:simpleexpr ( {@+:compop @+:simpleexpr}+
+				                     | [@+:eqop @+:simpleexpr]
 									 ) ;
 					eqop = '==' | '!=' | 'eq' | 'ne';
 					compop = 'le'|'ge'|'gt'|'lt'|'<='|'=<'|'<'|'>='|'=>'|'>';
@@ -77,7 +79,7 @@ top = '{' {set+:set ';'} (set+:set | ({exprs+:expr ';'} [emit:topemitexpr])) '}'
 				dottedPath =  @+:pname {'.' @+:pname}* ;
 				dotPath = @+:'.' [@+:pname {'.' @+:pname}*] ;
 				externalPath = module:pname '::' path+:pname {'.' path+:pname} ;
-					pname = NAME ; 
+					pname = NAME ;
 (*simpleexpr*)	lookup = '[' @simpleexpr ']' ;
 
 			value = number | string ;
@@ -92,6 +94,10 @@ top = '{' {set+:set ';'} (set+:set | ({exprs+:expr ';'} [emit:topemitexpr])) '}'
 				member = key:( number | string | barename) ':' val:expr ;
 					barename = name;
 
+COMMENTQ = ?/#[^"]*/? ;
+COMMENTSQ = ?/#[^";]*/? ;
+COMMENTB = ?/#[^}]*/? ;
+COMMENTSB = ?/#[^};]*/? ;
 NAME = ?/[a-zA-Z][a-zA-Z0-9_]*/? ;
 REGEX = ?/[/].*?[/]/?;
 INT = ?/[0-9]+/? ;

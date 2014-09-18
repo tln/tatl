@@ -11,11 +11,11 @@ class Peepholer:
 
     def filt(self, op, cur):
         return isinstance(op, self.cls)
-        
+
     def valid_run(self, run):
         return True
 
-    def optimize(self):
+    def optimize(self, target):
         # update ops in place
         runs = self.find_runs()
         ofs = 0
@@ -30,7 +30,7 @@ class Peepholer:
                     new = [Pass()]
             self.ops[start:end] = new
             ofs += (end - start) - len(new)
-                
+
     def optimize_run(self, ops):
         pass
 
@@ -49,7 +49,7 @@ class Peepholer:
             flag = newflag
         if flag:
             runs[-1][-1] = ix+1
-            
+
         return runs
 
 class OldStartEndPeepholer(Peepholer):
@@ -60,7 +60,7 @@ class OldStartEndPeepholer(Peepholer):
             return isinstance(op, self.cls)
         else:
             return isinstance(op, self.start)
-        
+
     def valid_run(self, run):
         start, end = run
         return isinstance(self.ops[end-1], self.end) or isinstance(self.ops[end], self.end)
@@ -92,8 +92,7 @@ class CombineC(Peepholer):
         if not v:
             # insert Pass??
             return []
-        ops[-1].val = v
-        return ops[-1:]
+        return [IR.EmitQText(v)]
 
 class SafeEmit(Peepholer):
     cls = IR.EmitQExpr
@@ -110,10 +109,10 @@ class CombineEmits(Peepholer):
     cls = (IR._Emit, IR.EmitQText)
     def optimize_run(self, ops):
         if len(ops) < 2: return
-            
+
         exprs = [repr(op.val) if op.name == 'C' else op.code()[6:-1] # strip off _emit( )
                  for op in ops]
-                 
+
         # gross...
         op = EMITTRICK1(exprs)
         return [op]
@@ -124,34 +123,96 @@ class EmitFmt(OpList.BasePart):
         map(self.add, exprs)
         self.fmt = fmt
         self.exprs = exprs
-        
+
     def code(self, target):
         if target == 'py':
-            return self.Code('_emit(%r %% (%s,))' % (self.fmt, OpList.List(self.exprs).code('py')))
+            if len(self.exprs) == 1:
+                py = self.exprs[0].code('py')
+            else:
+                py = '(%s)' % OpList.List(self.exprs).code('py')
+            return self.Code('_emit(%r %% %s)' % (self.fmt, py))
         elif target == 'js':
             code = repr(unicode(self.fmt))[1:]  # without u prefix
             fmt = code[0]+'+%s+'+code[0]
             code %= tuple([fmt % e.code('js') for e in self.exprs])
             return self.Code('_.emit(%s);' % code)
-            
+
+class UseBuf(Peepholer):
+    cls = (IR._Emit, IR.EmitQText)
+    def optimize_run(self, ops):
+        py = '_b'
+        for op in ops:
+            if isinstance(op, IR.EmitQText):
+                py = '(%s) + %r' % (py, op.val)
+            elif isinstance(op, IR.EmitUExpr):
+                py = '(%s) + %s' % (py, op.expr.code('py'))
+            elif isinstance(op, IR.EmitQExpr):
+                py = '(%s) & %s' % (py, op.expr.code('py'))
+            else:
+                # abort
+                print "Unexpected op", op
+                return
+        op = Optimized(ops, py=py)
+        return [op]
+
+class Optimized(OpList.BasePart):
+    def __init__(self, subparts, **exprs):
+        self.subparts = subparts
+        self.exprs = exprs
+        OpList.BasePart.__init__(self)
+        map(self.add, subparts)
+    def code(self, out):
+        if out in self.exprs:
+            code = self.exprs[out]
+        else:
+            # this only works with js :(
+            code = '\n'.join(p.code(out) for p in self.subparts)
+        return self.Code(code)
+
+class BufOrNotPeepholer(Peepholer):
+    def optimize(self, target):
+        if target != 'py': return
+
+        # find the return
+        for i, o in enumerate(self.ops):
+            if isinstance(o, IR.Return):
+                break
+        else:
+            raise AssertionError("Expected a return")
+
+        ops1 = self.ops[:i]
+        ops2 = self.ops[:i]
+        rest = self.ops[i:]
+        UseBuf(ops1).optimize(target)
+        CombineEmitsFmt(ops2).optimize(target)
+        self.ops[:i] = [IR.IfStart(IR.Impl('_b'))] + ops1 + [IR.Else()] + ops2 + [IR.IfEnd()]
+
 class CombineEmitsFmt(Peepholer):
     cls = (IR._Emit, IR.EmitQText)
     def optimize_run(self, ops):
         if len(ops) < 2: return
         fmt = u''
-        exprs = []
+        expr = None
+        out = []
         for op in ops:
             if isinstance(op, IR.EmitQText):
                 fmt += op.val.replace('%', '%%')
-            else:
+            elif expr is None:
                 fmt += '%s'
-                exprs.append(op.fmtexpr())
-        
-        op = EmitFmt(fmt, exprs)
-        return [op]
+                expr = op.fmtexpr()
+            else:
+                out.append(EmitFmt(fmt, [expr]))
+                fmt = u'%s'
+                expr = op.fmtexpr()
 
-optimizers = [
-    CombineC, 
-    SafeEmit, 
-    CombineEmitsFmt
-]
+        if expr is None:
+            if fmt:
+                out.append(IR.EmitQText(fmt.replace('%%', '%')))
+        else:
+            out.append(EmitFmt(fmt, [expr]))
+        return out
+
+optimizers = {
+    'py': [CombineC, SafeEmit, BufOrNotPeepholer],
+    'js': [CombineC, SafeEmit],
+}

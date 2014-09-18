@@ -67,7 +67,7 @@ class Function:
 
         lvars = set(self.args.lvars) | self.module.imports | set(self.module.functions)
         hasvar = lvars.copy()
-        for op in code.ops:
+        for op in code.pyops:
             if isinstance(op, FuncEnd):
                 break
             op.check(warn, lvars, self.module.functions)
@@ -86,10 +86,10 @@ class Function:
 
 # ---------
 class IR(OpList):
-    def optimizers(self):
+    def optimizers(self, target):
         # peephole imports IR, delay import to avoid circular import issues
         from tatl.peephole import optimizers
-        return optimizers
+        return optimizers[target]
 
 
 # -------- Major constructs created by ExprSemantics
@@ -217,12 +217,14 @@ class FiltExp(ArgPart):
     fields = ['expr', 'filt']
     pyfmt = '%(filt)s( %(expr)s )'
     jsfmt = '%(filt)s( %(expr)s )'
+
 def Path(paths):
     import tatlrt
     if paths[0] in tatlrt.__all__:
         return BuiltinPath(paths)
     else:
         return VarPath(paths)
+
 class BasePath(BasePart):
     def args(self, functions):
         import inspect
@@ -321,7 +323,7 @@ class Placeholder(BasePart):
         BasePart.__init__(self)
         op, self.name = ast
         self.method = {'*':'star','++':'plusplus'}[op]
-        self.py = '%s, _emit = _.%s()' % (self.name, self.method)
+        self.py = '%s, _emit, _b = _.%s()' % (self.name, self.method)
         self.js = '%s = _.%s()' % (self.name, self.method)
         self.lvars = [self.name]
 
@@ -361,7 +363,7 @@ class EmitQExpr(_Emit):             # QE Quoted Expression
     def fmtexpr(self):
         return Part('_q(%(0)s)', '_.q(%(0)s)', self.expr)
 class EmitUExpr(_Emit):             # UE Unquoted Expression
-    pyfmt = '_emit(unicode(%(expr)s))'
+    pyfmt = '_emit(_u(%(expr)s))'
     jsfmt = '_.emit(%(expr)s);'
 # -------- Module/function Ops
 class ModPreamble(BasePart):
@@ -381,7 +383,7 @@ class FuncDef(ArgPart):
 
 class FuncPreamble(ArgExpr):
     fields = ['context']
-    pyfmt = '_, _q, _emit = tatlrt._ctx(%(context)r)'
+    pyfmt = '_, _q, _emit, _b = tatlrt._ctx(%(context)r); _u = unicode'
     jsfmt = 'var _ = tatlrt._ctx(%(context)r);'
 
 class FuncEnd(_End):
@@ -431,10 +433,10 @@ class Elif(IfStart):
     jsfmt = '} else if (%(test)s) {'
 
 class ElideStart(BasePart):                 # SS Skip (elide) start
-    py = '_emit = _.elidestart()'
+    py = '_emit, _b = _.elidestart()'
     js = '_.elidestart()'
 class ElideEnd(BasePart):                 # SE Skip (elide) end
-    py = '_noelide, _content, _emit = _.elidecheck()'
+    py = '_noelide, _content, _emit, _b = _.elidecheck()'
     js = '_content = _.pop();'
     def addto(self, block):
         block.top.add(
@@ -457,28 +459,39 @@ class For1(_Tmp):            # F1 for loop 1 var start (pass pair as arg)
     pyfmt = 'for %(n1)s in _.iter(%(expr)s):'
     jsfmt = 'for (_i in (%(tmp)s = %(expr)s)) { %(n1)s = %(tmp)s[_i];'
     Code = Indent
+    def pragma(self, pragma):
+        pass
 
 class For2(_Tmp):         # F2 for loop 2 var start (pass triple as arg)
     fields = ['n1', 'n2', 'expr', 'tmp']
     pyfmt = 'for %(n1)s, %(n2)s in _.items(%(expr)s):'
+    pyuns = pyfmt.replace('items(', 'itemsUnsorted(')
     jsfmt = '''for (var Ti = 0, Tk = _.keys(T = %(expr)s), Tn = Tk.length; Ti < Tn; Ti++) {
     %(n2)s = T[%(n1)s = Tk[Ti]];'''.replace('T', '%(tmp)s')
+    jsuns = jsfmt.replace('keys(', 'keysUnsorted(')
     Code = Indent
+
+    def pragma(self, pragma):
+        if pragma == 'unsorted':
+            self.pyfmt = self.pyuns
+            self.jsfmt = self.jsuns
+
 class ForEnd(_End): pass               # FD for loop done
 # -------- Set
 class SetStart(BasePart):                 # LS Local (set) start
-    py = '_emit = _.push()'
+    py = '_emit, _b = _.push()'
     js = '_.push()'
 class SetEnd(ArgPart):
     fields = ['var']
-    pyfmt = '%(var)s, _emit = _.pop()'
+    pyfmt = '%(var)s, _emit, _b = _.pop()'
     jsfmt = '%(var)s = _.pop()'
 
 # -------- Use
 class UseStart(BasePart):                 # CS Call (use) start
-    py = js = '_emit = _.push()'
+    py = '_emit, _b = _.push()'
+    js = '_.push()'
 class UseEnd0(BasePart):
-    py = 'inner, _emit = _.pop()'
+    py = 'inner, _emit, _b = _.pop()'
     js = 'inner = _.pop()'
     def __init__(self):
         BasePart.__init__(self)

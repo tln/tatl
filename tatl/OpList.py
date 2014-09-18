@@ -63,11 +63,6 @@ class BasePart(Op):
         self.lvars.extend(part.lvars)
         self.rvars.extend(part.rvars)
 
-    def __str__(self):
-        #TODO remove
-        print 'str called -> %r' % self.py
-        return self.py
-
     def __repr__(self):
         return '<%s>' % self.out().replace('\n', ' ')
 
@@ -177,6 +172,7 @@ class Lvar(BasePart):
         self.lvar = lvar
         self.lvars = [lvar]
         self.py = self.js = lvar
+
 class Asgn(Part):
     def __init__(self, lvar, expr):
         if isinstance(lvar, basestring):
@@ -205,7 +201,6 @@ class Impl(BasePart):
         BasePart.__init__(self)
         self.py = py
         self.js = js or py
-
 
 class Wrap(BasePart):
     def __init__(self, part):
@@ -243,13 +238,14 @@ def join(fn):
 
 class OpList:
     def __init__(self):
-        self.ops = []
+        self.pyops = []
+        self.jsops = []
 
     def __nonzero__(self):
-        return bool(self.ops)
+        return bool(self.pyops)
 
     def check(self):
-        for op in self.ops:
+        for op in self.pyops:
             try:
                 assert isinstance(op.code('py'), Code)
             except Exception, e:
@@ -259,7 +255,7 @@ class OpList:
 
     @join
     def view(self):
-        for op in self.ops:
+        for op in self.pyops:
             try:
                 indent = op.Code.indent-op.Code.dedent
             except:
@@ -269,7 +265,8 @@ class OpList:
     @join
     def code(self, target):
         i = 0
-        for op in self.ops:
+        ops = self.pyops if target == 'py' else self.jsops
+        for op in ops:
             code = op.code(target)
             if not isinstance(code, Code):
                 print 'op.code didnt return Code instance:', repr(op)
@@ -280,19 +277,21 @@ class OpList:
 
     def add(self, *ops):
         if not ops: return
-        cur = self.ops
-        if cur and cur[-1].Code.indent and ops[0].Code.dedent:
-            cur.append(Pass())
-        cur.extend(ops)
+        for cur in self.pyops, self.jsops:
+            if cur and cur[-1].Code.indent and ops[0].Code.dedent:
+                cur.append(Pass())
+            cur.extend(ops)
 
     def combine(self, other):
-        self.ops.extend(other.ops)
+        self.pyops.extend(other.pyops)
+        self.jsops.extend(other.jsops)
 
     def optimize(self):
-        for cls in self.optimizers():
-            cls(self.ops).optimize()
-        return self
+        for cls in self.optimizers('py'):
+            cls(self.pyops).optimize('py')
+        for cls in self.optimizers('js'):
+            cls(self.jsops).optimize('js')
 
-    def optimizers(self):
+    def optimizers(self, target):
         return []
 
