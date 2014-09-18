@@ -201,15 +201,8 @@ class ExprSemantics(ExprParser.ExprParser):
 
     # externally called...
     def top(self, ast):
-        """
-        top = '{' {set+:set ';'} {exprs+:expr ';'} emit:[ topemitexpr ] '}' ;
-        topemitexpr = star:placeholder | filtexp:expr ;
-        """
-        if not hasattr(ast, 'parseinfo'):
-            import pdb
-            pdb.set_trace()
         rest = self._rest(ast.parseinfo)
-        return IR.Top(ast.set or [], ast.exprs or [], ast.emit, rest)
+        return IR.Top(ast.set_ or [], ast.exprs or [], ast.emit, rest)
 
     def _rest(self, p):
         if not p: return None  # check!
@@ -226,7 +219,7 @@ class ExprSemantics(ExprParser.ExprParser):
         return IR.Set(ast.var, ast.filter or [])
 
     def ifExpr(self, ast):
-        return IR.If(ast.set or [], ast.test)
+        return IR.If(ast.set_ or [], ast.test)
 
     def forExpr(self, ast):
         if ast.n2:
@@ -235,7 +228,7 @@ class ExprSemantics(ExprParser.ExprParser):
             stmt = IR.For1(ast.n1 or IR.Lvar('dot'), ast.expr)
         if ast.pragma:
             stmt.pragma(ast.pragma[1:].strip())
-        return IR.For(ast.set or [], stmt)
+        return IR.For(ast.set_ or [], stmt)
 
     def lvar(self, ast):
         return IR.Lvar(ast)
@@ -248,4 +241,4 @@ class ExprSemantics(ExprParser.ExprParser):
 
     def useExpr(self, ast):
         # step, path, arglist
-        return IR.Use(ast.set or [], ast.path, ast.arglist)
+        return IR.Use(ast.set_ or [], ast.path, ast.arglist)

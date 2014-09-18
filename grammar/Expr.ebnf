@@ -22,17 +22,17 @@ setAttr = setExpr $ ;
 useAttr = useExpr $ ;
 
 (* For testing *)
-attrs = 'def="' @defExpr '"'
-	| 'for="' @forExpr '"'
-    | 'if="' @ifExpr '"'
-	| 'param="' @paramExpr '"'
-	| 'set="' @setExpr '"'
-	| 'use="' @useExpr '"'
+attrs = 'def="' @:defExpr '"'
+	| 'for="' @:forExpr '"'
+    | 'if="' @:ifExpr '"'
+	| 'param="' @:paramExpr '"'
+	| 'set="' @:setExpr '"'
+	| 'use="' @:useExpr '"'
 	| top ;
 
 defExpr = name:lvar [args:arglist] ['=' result:expr] {filter+:filter} [COMMENTQ] ;
 	arglist = '(' [@+:arg {',' @+:arg} [',']] @+:')' ;
-	arg = @name | @'*' ;
+	arg = @:name | @:'*' ;
 	name = NAME | '.';
 setExpr = var:lvar {filter+:filter} [COMMENTQ];
 forExpr = {set+:set [COMMENTSQ] ';'} [n1:lvar [',' n2:lvar] 'in'] expr:expr [pragma:forpragma];
@@ -52,9 +52,9 @@ top = '{' {set+:set [COMMENTSB] ';'} (set+:set | ({exprs+:expr ';'} [emit:topemi
 	setif = var:name ('=?'|'?=') expr:expr ;
 
 	topemitexpr = placeholder | filtexp ;
-		placeholder = @('*' | '++') ':' @name ;
+		placeholder = @:('*' | '++') ':' @:name ;
 		filtexp = expr:expr {filter+:filter} ;
-		filter = '|' (  @call | @path ) ;
+		filter = '|' (  @:call | @:path ) ;
 
 
 	expr = ternary | range | simpleexpr;
@@ -80,7 +80,7 @@ top = '{' {set+:set [COMMENTSB] ';'} (set+:set | ({exprs+:expr ';'} [emit:topemi
 				dotPath = @+:'.' [@+:pname {'.' @+:pname}*] ;
 				externalPath = module:pname '::' path+:pname {'.' path+:pname} ;
 					pname = NAME ;
-(*simpleexpr*)	lookup = '[' @simpleexpr ']' ;
+(*simpleexpr*)	lookup = '[' @:simpleexpr ']' ;
 
 			value = number | string ;
 				number = NUMBER ;
@@ -88,7 +88,7 @@ top = '{' {set+:set [COMMENTSB] ';'} (set+:set | ({exprs+:expr ';'} [emit:topemi
 
 
 (*expr*)	list = '[' [@+:(expr|starexp) {',' @+:(expr|starexp)} [',']]  ']' ;
-(*expr*)		starexp = '*' @expr ;
+(*expr*)		starexp = '*' @:expr ;
 
 			map = '{' [@+:(member|starexp) {',' @+:(member|starexp)}] '}' ;
 				member = key:( number | string | barename) ':' val:expr ;
