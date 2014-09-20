@@ -395,7 +395,7 @@ class EmitQExpr(_Emit):
     def fmtexpr(self):
         return QExpr(self.expr)
 class EmitUExpr(_Emit):
-    pyfmt = '%(emit)s(_u(%(expr)s))'
+    pyfmt = '%(emit)s(u"%s" %% %(expr)s)'
     jsfmt = '_.emit(%(expr)s);'
 
 class QExpr(ArgPart):
@@ -421,7 +421,7 @@ class FuncDef(ArgPart):
 
 class FuncPreamble(ArgExpr):
     fields = ['context']
-    pyfmt = '_, _q = tatlrt.ctx(%(context)r); _u = unicode; %(emit)s = tatlrt.Buf()'
+    pyfmt = '_, _q = tatlrt.ctx(%(context)r); %(emit)s = tatlrt.Buf()'
     jsfmt = 'var _ = tatlrt.ctx(%(context)r);'
 
 class FuncEnd(_End):

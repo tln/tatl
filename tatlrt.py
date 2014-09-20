@@ -2,6 +2,12 @@
 import json, re
 from warnings import warn
 
+try: unicode
+except:
+    # Python 3
+    unicode = basestring = str
+    apply = lambda f, args=(), kw={}: f(*args, **kw)
+
 # Define some of the TATL built-ins. Compiler uses __all__ to determine whether name refers to a
 # built-in.
 null = None
@@ -21,8 +27,13 @@ def public(obj):
 class filters:
     def _add(self, fn, _alias=re.compile('Alias: (\w+)')):
         """Mark a function as a filter. Include Alias: name in the docstring
-        to make a shortened alias. Also add logic such that if used in def=""
-        context (ie, given a function, it will return a wrapper)
+        to make a shortened alias.
+
+        Also add logic such that if used in def="" context (ie, given a function),
+        it will return a wrapper.
+
+        eg filters.trim(" s") -> "s"
+           filters.trim(func)(...) -> filters.trim(func(...))
         """
         def f(arg, *args, **kw):
             if callable(arg) and not (args or kw):
@@ -220,9 +231,9 @@ class _Context(object):
             if not isinstance(p, basestring): return None
             try:
                 return getattr(o, p, None)
-            except Exception, e:
+            except Exception:
                 pass
-        except Exception, e:
+        except Exception:
             pass
         warn("Unexpected error getting %r[%r]: %s" % (o, p, e))
         return None
