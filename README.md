@@ -220,4 +220,3 @@ Needed and Possible changes
 * any and all -- boolean quantifiers
 * Expand front matter to use built-in value syntax, (which is basically JSON5). // and /* */ Comments
 * Further builtins... min, max, reversed, sorted, zip... groupby, batch...
-* for x in y by ... -- built in sort. This would allow unsorted iteration.

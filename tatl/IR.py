@@ -362,12 +362,12 @@ class Placeholder(BasePart):
 
 class RangeIncl(ArgPart):
     fields = ['n', 'm']
-    pyfmt = 'tatlrt.range_incl(%(n)s, %(m)s)'
+    pyfmt = '_.range_incl(%(n)s, %(m)s)'
     jsfmt = 'tatlrt.range(%(n)s, %(m)s, true)'
 
 class RangeExcl(ArgPart):
     fields = ['n', 'm']
-    pyfmt = 'tatlrt.range_excl(%(n)s, %(m)s)'
+    pyfmt = '_.range_excl(%(n)s, %(m)s)'
     jsfmt = 'tatlrt.range(%(n)s, %(m)s, false)'
 
 # -------- Bases/helpers for Ops
@@ -389,12 +389,12 @@ class _Emit(ArgPart):
     fields = ['expr']
     def fmtexpr(self):
         return self.expr
-class EmitQExpr(_Emit):             # QE Quoted Expression
+class EmitQExpr(_Emit):
     pyfmt = '%(emit)s(_q(%(expr)s))'
     jsfmt = '_.emit(_.q(%(expr)s));'
     def fmtexpr(self):
         return QExpr(self.expr)
-class EmitUExpr(_Emit):             # UE Unquoted Expression
+class EmitUExpr(_Emit):
     pyfmt = '%(emit)s(_u(%(expr)s))'
     jsfmt = '_.emit(%(expr)s);'
 
@@ -421,8 +421,8 @@ class FuncDef(ArgPart):
 
 class FuncPreamble(ArgExpr):
     fields = ['context']
-    pyfmt = '_, _q = tatlrt._ctx(%(context)r); _u = unicode; %(emit)s = tatlrt.Buf()'
-    jsfmt = 'var _ = tatlrt._ctx(%(context)r);'
+    pyfmt = '_, _q = tatlrt.ctx(%(context)r); _u = unicode; %(emit)s = tatlrt.Buf()'
+    jsfmt = 'var _ = tatlrt.ctx(%(context)r);'
 
 class FuncEnd(_End):
     js = '}'
@@ -435,7 +435,7 @@ class Import(ArgExpr):
     jsfmt = "var %(arg)s = require(%(arg)r)"    # hack! ./t_tmpl
     lvarfields = fields = ['arg']
 
-class InitLocal(_Var):  # SV Setup local vars
+class InitLocal(_Var):
     lvarfields = ['var']
     pyfmt = '%(var)s = _kw.get(%(var)r)'
     jsfmt = 'var %(var)s = this.%(var)s'

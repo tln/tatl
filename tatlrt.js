@@ -1,4 +1,4 @@
-exports._ctx = function(quotestyle) {
+exports.ctx = function(quotestyle) {
 	var cur = []
 	return {
 		outs: [cur],
@@ -299,7 +299,7 @@ exports.tag = function (tagname, attrs, inner) {
     return exports.safe('<'+tagname+attstr+'>'+_attr.q(inner)+'</'+tagname+'>')
 }
 
-var _attr = exports._ctx('attr')     // to facilitate internal quoting
+var _attr = exports.ctx('attr')     // to facilitate internal quoting
 
 exports.attrs = function (attdict, s) {
     return _findtag(s, function (s, start, end) {

@@ -1,4 +1,4 @@
-# API for runtime
+# TATL runtime lib
 import json, re
 from warnings import warn
 
@@ -11,14 +11,9 @@ len = len
 __all__ = ['len', 'true', 'false', 'null']
 
 def public(obj):
-    "Mark a class or function as public"
+    "Mark a class or function as public (aka a builtin, available from TATL templates)"
     __all__.append(obj.__name__)
     return obj
-
-# Compiler generates calls to tatlrt.bool, but it isnt a builtin that templates need to use.
-# TATL defines truthiness just like Python, so re=using the builtin works; tatlrt.js implements
-# Python-compatible logic.
-bool = bool
 
 # A namespace of filters.
 @apply
@@ -41,34 +36,9 @@ class filters:
             setattr(self, alias, f)
         return fn
 
-# Compiler generates calls to these to implement 0..10 and 0...10 logic.
-def range_incl(n, m):
-    return range(n, m+1) if n < m else range(n, m-1, -1)
-
-def range_excl(n, m):
-    return range(n, m) if n < m else range(n-1, m-1, -1)
-
-# Quoting / escaping logic
+# Marker for safe strings
 @filters._add
 class safe(unicode): "Quoted strings are 'safe' and do not get quoted again."
-_quote_safe = lambda s: s
-
-def _quote_str(o):
-    """Escape a str/unicode object. Note that compiled code never uses ' for attributes and >
-    doesn't needed to be escaped to form valid HTML. These replace calls are a big cost,
-    so saving 40% of them is a win.
-    """
-    return o.replace(u'&', u'&amp;')\
-            .replace(u'<', u'&lt;')\
-            .replace(u"'", u'&#39;')
-
-def _quote_other(o, q=_quote_str):
-    """Escape a non-basestring, non-unicode object.
-    Lists are space separated, dictionaries are repr-ed
-    """
-    if isinstance(o, (tuple, list)):
-        return q(' '.join(map(unicode, o)))
-    return q(unicode(o))
 
 # Buffer logic, use fastbuf if available or lists if not
 # This can be turned off/on at runtime, to enable testing using both paths
@@ -96,7 +66,28 @@ def use_fast(flag):
 
 use_fast(True)
 
-# Context objects, most compiler code constructs go through one of these
+# Quoting / escaping logic.
+# Quote occurs through a type-switch mechanism which is faster than if isinstance chains.
+_quote_safe = lambda s: s
+
+def _quote_str(o):
+    """Escape a str/unicode object. Note that compiled code never uses ' for attributes and >
+    doesn't needed to be escaped to form valid HTML. These replace calls are a big cost,
+    so saving 40% of them is a win.
+    """
+    return o.replace(u'&', u'&amp;')\
+            .replace(u'<', u'&lt;')\
+            .replace(u"'", u'&#39;')
+
+def _quote_other(o, q=_quote_str):
+    """Escape a non-basestring, non-unicode, non-number, non-bool, non-null object.
+    Lists are space separated, dictionaries are repr-ed
+    """
+    if isinstance(o, (tuple, list)):
+        return q(' '.join(map(unicode, o)))
+    return q(unicode(o))
+
+
 class _Context(object):
     "Context object, created for each TATL macro"
     # Define type-switches for quoting
@@ -120,10 +111,6 @@ class _Context(object):
     def __init__(self, ctxname):
         self.qstack = [0]  # track whether .quote has been called with an empty value
         self.mkquote(ctxname)
-        self.get1 = _get1
-
-    def buffer(self):
-        return [].append if Buf is list else self.buf
 
     def mkquote(self, ctxname):
         # Build a quoting function from type switches
@@ -135,25 +122,6 @@ class _Context(object):
         d[bool] = self._bool
         self.quote = lambda obj: d[obj.__class__](obj)
 
-    def pushctx(self, ctxname):
-        self.cstack.append(self.quote)
-        try:
-            self.quote = self.qcache[ctxname]
-        except KeyError:
-            # Build a quoting function from type switches
-            from collections import defaultdict
-            default, typesdict = self.q[ctxname]
-            d = defaultdict(lambda:default, self.q_def)
-            d.update(typesdict)
-            d[None.__class__] = self._none
-            d[bool] = self._bool
-            def quote(obj):
-                return d[type(obj)](obj)
-            self.quote = self.qcache[ctxname] = quote
-
-    def popctx(self):
-        self.quote = self.cstack.pop()
-
     def _none(self, arg):
         self.qstack[-1] = 1
         return ''
@@ -164,9 +132,11 @@ class _Context(object):
         return ''
 
     def star(self):
+        #NB broken
         return _Star(self.estack[-1], self.quote), + self.push()
 
     def plusplus(self):
+        #NB broken
         return _Plusplus(self.estack[-1]), + self.push()
 
     def elidestart(self):
@@ -188,7 +158,6 @@ class _Context(object):
         return o
 
     def applyauto(self, func, locals):
-        #TODO remove this code path
         if isinstance(func, (_Star, _Plusplus)):
             argnames = ['dot']
         else:
@@ -199,7 +168,6 @@ class _Context(object):
         return result or ''
 
     def applyargs(self, func, *args):
-        #TODO finalize semantics here. try/except?
         result = func(*args)
         return result or ''
 
@@ -236,21 +204,37 @@ class _Context(object):
             return re.search(pattern, object) is not None
         return False
 
-def _get1(o, p):
-    "Implement path lookup, both {o.p} and {o[p]}"
-    try:
-        return o[p]
-    except (TypeError, KeyError, IndexError, AttributeError):
-        if not isinstance(p, basestring): return None
+    def range_incl(self, n, m):
+        # Implement n...m logic.
+        return range(n, m+1) if n < m else range(n, m-1, -1)
+
+    def range_excl(self, n, m):
+        # Implement n..m logic.
+        return range(n, m) if n < m else range(n-1, m-1, -1)
+
+    def get1(self, o, p):
+        "Implement path lookup, both {o.p} and {o[p]}"
         try:
-            return getattr(o, p, None)
+            return o[p]
+        except (TypeError, KeyError, IndexError, AttributeError):
+            if not isinstance(p, basestring): return None
+            try:
+                return getattr(o, p, None)
+            except Exception, e:
+                pass
         except Exception, e:
             pass
-    except Exception, e:
-        pass
-    warn("Unexpected error getting %r[%r]: %s" % (o, p, e))
-    return None
+        warn("Unexpected error getting %r[%r]: %s" % (o, p, e))
+        return None
 
+def ctx(name):
+    c = _Context(name)
+    return c, c.quote
+
+# Used elsewhere in tatl for quoting
+_attr = _Context('attr')
+
+# Used to implement {*:x}
 class _Star:
     def __init__(self, l, quote):
         self._l = l
@@ -276,8 +260,7 @@ class _Star:
     def __len__(self):
         return len(self._l) - self._len
 
-
-
+# Used to implement {++:x}
 class _Plusplus:
     def __init__(self, l):
         self._l = l
@@ -300,12 +283,6 @@ class _Plusplus:
     def __int__(self):
         return self.cur
 
-
-def _ctx(name):
-    c = _Context(name)
-    return c, c.quote
-
-_attr = _Context('attr')
 # forloop, swiss army knife of looping
 class _Forloop(object):
     length = 0
@@ -431,7 +408,7 @@ class Aggregator:
             self.values.append(value)
         else:
             for key in self.aggfns:
-                self.values[key].append(_get1(value, key))
+                self.values[key].append(_attr.get1(value, key))
 
     def value(self):
         if not self.has_aggs:
