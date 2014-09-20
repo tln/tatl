@@ -137,21 +137,6 @@ class ArgExpr(BasePart):
         fmt = getattr(self, target+'fmt')
         return self.Code(fmt % self.__dict__)
 
-class Part(BasePart):
-    def __init__(self, pyfmt, jsfmt, *parts, **partkw):
-        BasePart.__init__(self)
-        pyfrags = {}
-        jsfrags = {}
-        if 'Code' in partkw:
-            self.Code = partkw.pop('Code')
-        for k, v in list(enumerate(parts)) + partkw.items():
-            self.add(v)
-            pyfrags[str(k)] = v.code('py', None)
-            jsfrags[str(k)] = v.code('js', None)
-        self.py = pyfmt % pyfrags
-        self.js = jsfmt % jsfrags
-        self.__dict__.update(partkw)
-
 class ArgPart(BasePart):
     fields = []
     pyfmt = jsfmt = None #'*not implemented*'

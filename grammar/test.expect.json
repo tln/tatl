@@ -30,7 +30,7 @@
     "{.}": "set   = []\nexprs = []\nemit  = py/js: dot\n        rvars: dot\nrest  = ", 
     "{0..5}": "set   = []\nexprs = []\nemit  = py: _.range_excl(0, 5)\n        js: tatlrt.range(0, 5, false)\nrest  = ", 
     "{1 lt 2 ? 1}": "set   = []\nexprs = []\nemit  = py: 1 if 1 < 2 else None\n        js: 1 < 2 ? 1 : null\nrest  = ", 
-    "{1 lt x le y ?: 12}": "set   = []\nexprs = []\nemit  = py: (1 < x <= y or 12)\n        js: ((1 < (_tmp1 = x) && _tmp1 <= y) || (12))\n        rvars: x,y\nrest  = ", 
+    "{1 lt x le y ?: 12}": "set   = []\nexprs = []\nemit  = py: (1 < x <= y or 12)\n        js: ((1 < (_tmp0 = x) && _tmp0 <= y) || (12))\n        rvars: x,y\nrest  = ", 
     "{1...5}": "set   = []\nexprs = []\nemit  = py: _.range_incl(1, 5)\n        js: tatlrt.range(1, 5, true)\nrest  = ", 
     "{1}": "set   = []\nexprs = []\nemit  = py/js: 1\nrest  = ", 
     "{[*a]}": "set   = []\nexprs = []\nemit  = py/js: a\n        type: starexp rvars: a\nrest  = ", 

@@ -112,7 +112,7 @@ class Def(namedtuple('Def', 'name args result filters'), Out):
             FuncEnd(),
             *[Filter(self.name, filt) for filt in self.filters]
         )
-        block.bot.add(Part('', 'exports.%(0)s = tatlrt._bind(%(0)s)', self.name))
+        block.bot.add()
 
 class Result(ArgExpr):
     fields = []
@@ -274,8 +274,6 @@ class VarPath(BasePath):
         else:
             return '_.get(%s, %r)' % (var, paths)
 
-
-
     def args(self, functions):
         fn = functions.get(self.paths[0])
         if fn is None: return None
@@ -308,6 +306,34 @@ class Or(ArgPart):
     fields = ['test', 'false']
     pyfmt = '(%(test)s or %(false)s)'
     jsfmt = '((%(test)s) || (%(false)s))'
+
+class OpChain(BasePart):
+    def __init__(self, args, ops):
+        BasePart.__init__(self)
+        map(self.add, args)
+        self.args = args
+        self.ops = ops
+
+    def code(self, target, state):
+        # Make list of combined size
+        parts = self.args + self.ops
+        # Replace every 2nd element offset 1 with an op
+        parts[1::2] = self.ops
+        if target == 'py' or len(self.args) == 2:
+            # Replace every 2nd element with code
+            parts[::2] = [a.code(target, state) for a in self.args]
+        else:
+            # a == b == c  -->  a == (_tmp = b) && _tmp == c
+            # First and last args become unwrapped code
+            parts[0] = self.args[0].code(target, state)
+            parts[-1] = self.args[-1].code(target, state)
+            # Wrap middle args with temp assignment so that expression is
+            # not executed twice
+            parts[2:-2:2] = [
+                '(_tmp%d = %s) && _tmp%d' % (i, a.code(target, state), i)
+                for i, a in enumerate(self.args[1:-1])
+            ]
+        return ' '.join(parts)
 
 class ExtPath(Expr, BasePath):
     def __init__(self, module, path):
@@ -359,7 +385,6 @@ class Placeholder(BasePart):
         self.js = '%s = _.%s()' % (self.name, self.method)
         self.lvars = [self.name]
 
-
 class RangeIncl(ArgPart):
     fields = ['n', 'm']
     pyfmt = '_.range_incl(%(n)s, %(m)s)'
@@ -369,6 +394,15 @@ class RangeExcl(ArgPart):
     fields = ['n', 'm']
     pyfmt = '_.range_excl(%(n)s, %(m)s)'
     jsfmt = 'tatlrt.range(%(n)s, %(m)s, false)'
+
+class Regex(ArgPart):
+    fields = ['expr']
+    def __init__(self, pat, negate, expr):
+        re.compile(pat)  # crash on invalid pattern
+        pat = pat.replace('%', '%%')
+        self.pyfmt = ('not ' if negate else '') + '_.search(%r, %%(expr)s)' % pat
+        self.jsfmt = ('!' if negate else '') + '_.search(/%s/, %%(expr)s)' % pat
+        ArgPart.__init__(self, expr)
 
 # -------- Bases/helpers for Ops
 class _Val(ArgExpr): fields = ['val']
@@ -395,7 +429,7 @@ class EmitQExpr(_Emit):
     def fmtexpr(self):
         return QExpr(self.expr)
 class EmitUExpr(_Emit):
-    pyfmt = '%(emit)s(u"%s" %% %(expr)s)'
+    pyfmt = '%(emit)s(u"%%s" %% %(expr)s)'
     jsfmt = '_.emit(%(expr)s);'
 
 class QExpr(ArgPart):
@@ -411,7 +445,7 @@ class FuncDef(ArgPart):
     fields = ['name', 'args']
     Code = Indent
     pyfmt = 'def %(name)s(%(args)s):'
-    jsfmt = 'function %(name)s(%(args)s) {'
+    jsfmt = 'exports.%(name)s = tatlrt._bind(function %(name)s(%(args)s) {'
     def code(self, target, state):
         code = ArgPart.code(self, target, state)
         if target == 'js':
@@ -425,7 +459,7 @@ class FuncPreamble(ArgExpr):
     jsfmt = 'var _ = tatlrt.ctx(%(context)r);'
 
 class FuncEnd(_End):
-    js = '}'
+    js = '});'
 class Return(ArgPart):
     fields = ['expr']
     jsfmt = pyfmt = 'return %(expr)s'

@@ -99,38 +99,20 @@ class ExprSemantics(ExprParser.ExprParser):
             '=<': '<=', '=>':'>='
         }.get(op, op)
 
+    @debug
     def comp(self, ast):
         if len(ast) == 1:
             return IR.Bool(ast[0])
         else:
             # ast is arg, op, arg2, op, arg3 etc
-            args = ast[::2]
-
-            py = ast[:]
-            py[::2] = map('%({})s'.format, range(len(args)))
-            pyfmt = ' '.join(py)
-
-            if len(ast) == 3:
-                jsfmt = '%(0)s '+ ast[1] + ' %(1)s'
-            else:
-                l = ['%(0)s']
-                ix = 1
-                for op in ast[1:-2:2]:
-                    l += [op, '(_tmp{0} = %({0})s) && _tmp{0}'.format(ix)]
-                    ix += 1
-                l += [ast[-2], '%({})s'.format(ix)]
-                jsfmt = ' '.join(l)
-            return IR.Part(pyfmt, jsfmt, *args)
+            args, ops = ast[::2], ast[1::2]
+            return IR.OpChain(args, ops)
 
     def relit(self, ast):
         return ast[1:-1]
 
     def regex(self, ast):
-        pyop, jsop = ('not ', '!') if '!' in ast.op else ('','')
-        re = ast.re.replace('%', '%%')
-        pyfmt = pyop + '_.search(%r, %%(0)s)' % re
-        jsfmt = jsop + '_.search(/%s/, %%(0)s)' % re
-        return IR.Part(pyfmt, jsfmt, ast.expr)
+        return IR.Regex(ast.re, '!' in ast.op, ast.expr)
 
     def ternary(self, ast):
         if not (ast.true or ast.false):
