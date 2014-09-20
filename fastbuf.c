@@ -50,6 +50,9 @@ PyObject* buf_inplace_add(fastbuf_BufObject* obj, PyObject* other);
 
 PyUnicodeObject *buf_other_to_unicode(PyObject* other, int* blank_flag)
 {
+    if (PyUnicode_Check(other)) {
+        return (PyUnicodeObject *)other;
+    }
     if (other == Py_None || other == Py_False) {
         *blank_flag = 1;
         return (PyUnicodeObject *)PyUnicode_FromString("");
