@@ -28,8 +28,8 @@ class Module:
             self.block.top.combine(fn.done())
         return self.block.done()
 
-    def code(self, target):
-        return self.block.top.code(target)
+    def code(self, target, state):
+        return self.block.top.code(target, state)
 
     def view(self):
         return self.block.top.view()
@@ -101,18 +101,23 @@ class Def(namedtuple('Def', 'name args result filters'), Out):
             )
         if self.result:
             block.bot.add(
-                Asgn('dot', Impl('_.result()')),
+                Asgn('dot', Result()),
                 Return(self.result),
             )
         else:
             block.bot.add(
-                Return(Expr([], '_.result()')),
+                Return(Result()),
             )
         block.bot.add(
             FuncEnd(),
             *[Filter(self.name, filt) for filt in self.filters]
         )
         block.bot.add(Part('', 'exports.%(0)s = tatlrt._bind(%(0)s)', self.name))
+
+class Result(ArgExpr):
+    fields = []
+    pyfmt = 'tatlrt.safejoin(%(emit)s)'
+    jsfmt = '_.result()'
 
 class If(namedtuple('If', 'set test'), Out):
     def addto(self, block):
@@ -178,6 +183,7 @@ class BoolAttr(namedtuple('BoolAttr', 'attr top'), Out):
             EmitQText(' '+self.attr),
             IfEnd()
         )
+
 # -------- Additional constructs
 class StarExp(Wrap):
     type = 'starexp'
@@ -209,8 +215,8 @@ class Filt(BasePart):
             self.filtname = fn.__name__
         return path
 
-    def code(self, target):
-        return self.expr.code(target)
+    def code(self, target, state):
+        return self.expr.code(target, state)
 
 
 class FiltExp(ArgPart):
@@ -231,7 +237,7 @@ class BasePath(BasePart):
         try:
             d = {}
             exec 'import tatlrt' in d, d
-            func = eval(self.code('py'), d, d)
+            func = eval(self.code('py', None), d, d)
             args, _, _, _ = inspect.getargspec(func)
             if list in map(type, args):
                 # cant handle auto in this case
@@ -247,7 +253,7 @@ class BuiltinPath(BasePath):
         BasePart.__init__(self)
         self.paths = paths
 
-    def code(self, target):
+    def code(self, target, state):
         return 'tatlrt.' + '.'.join(self.paths)
 
 class VarPath(BasePath):
@@ -256,7 +262,7 @@ class VarPath(BasePath):
         self.paths = paths
         self.rvars = [paths[0]]
 
-    def code(self, target):
+    def code(self, target, state):
         # Same for py and js
         paths = self.paths[:]
         var = paths.pop(0)
@@ -276,6 +282,32 @@ class VarPath(BasePath):
         #import pdb
         #pdb.set_trace()
         return fn.argnames()
+
+class AsgnIf(ArgPart):
+    fields = ['var', 'expr']
+    pyfmt = '%(var)s = %(var)s or %(expr)s'
+    jsfmt = '%(var)s = %(var)s || %(expr)s'
+
+class Member(ArgPart):
+    fields = ['key', 'val']
+    pyfmt = jsfmt = '%(key)s: %(val)s'
+
+class Bool(ArgPart):
+    fields = ['expr']
+    pyfmt = 'bool(%(expr)s)'
+    jsfmt = 'tatlrt.bool(%(expr)s)'
+
+class Ternary(ArgPart):
+    pyfmt = '%(true)s if %(test)s else %(false)s'
+    jsfmt = '%(test)s ? %(true)s : %(false)s'
+    fields = ['test', 'true', 'false']
+
+Null = Expr([], 'None', 'null')
+
+class Or(ArgPart):
+    fields = ['test', 'false']
+    pyfmt = '(%(test)s or %(false)s)'
+    jsfmt = '((%(test)s) || (%(false)s))'
 
 class ExtPath(Expr, BasePath):
     def __init__(self, module, path):
@@ -307,9 +339,9 @@ class Args(BasePart):
         self.calc()
 
     def calc(self):
-        self.py = ', '.join(p.code('py')+'=None' for p in self.args) + ', **_kw'
+        self.py = ', '.join(p.code('py', None)+'=None' for p in self.args) + ', **_kw'
         self.py = self.py.lstrip(', ')
-        self.js = ', '.join(p.code('js') for p in self.args)
+        self.js = ', '.join(p.code('js', None) for p in self.args)
 
     def add_arg(self, lvar):
         assert lvar.lvars
@@ -350,7 +382,7 @@ class _End(BasePart):
 
 # -------- Emitting Ops
 class EmitQText(_Val):
-    pyfmt = '_emit(%(val)r)'
+    pyfmt = '%(emit)s(%(val)r)'
     jsfmt = '_.emit(%(val)r);'
 
 class _Emit(ArgPart):
@@ -358,13 +390,19 @@ class _Emit(ArgPart):
     def fmtexpr(self):
         return self.expr
 class EmitQExpr(_Emit):             # QE Quoted Expression
-    pyfmt = '_emit(_q(%(expr)s))'
+    pyfmt = '%(emit)s(_q(%(expr)s))'
     jsfmt = '_.emit(_.q(%(expr)s));'
     def fmtexpr(self):
-        return Part('_q(%(0)s)', '_.q(%(0)s)', self.expr)
+        return QExpr(self.expr)
 class EmitUExpr(_Emit):             # UE Unquoted Expression
-    pyfmt = '_emit(_u(%(expr)s))'
+    pyfmt = '%(emit)s(_u(%(expr)s))'
     jsfmt = '_.emit(%(expr)s);'
+
+class QExpr(ArgPart):
+    fields = ['expr']
+    pyfmt = '_q(%(expr)s)'
+    jsfmt = '_.q(%(expr)s)'
+
 # -------- Module/function Ops
 class ModPreamble(BasePart):
     py = '# -*- coding:UTF-8 -*-'
@@ -374,8 +412,8 @@ class FuncDef(ArgPart):
     Code = Indent
     pyfmt = 'def %(name)s(%(args)s):'
     jsfmt = 'function %(name)s(%(args)s) {'
-    def code(self, target):
-        code = ArgPart.code(self, target)
+    def code(self, target, state):
+        code = ArgPart.code(self, target, state)
         if target == 'js':
             for arg in self.args.args:
                 code += '\n    %(arg)s = %(arg)s || this.%(arg)s' % {'arg': arg.lvar}
@@ -383,7 +421,7 @@ class FuncDef(ArgPart):
 
 class FuncPreamble(ArgExpr):
     fields = ['context']
-    pyfmt = '_, _q, _emit, _b = tatlrt._ctx(%(context)r); _u = unicode'
+    pyfmt = '_, _q = tatlrt._ctx(%(context)r); _u = unicode; %(emit)s = tatlrt.Buf()'
     jsfmt = 'var _ = tatlrt._ctx(%(context)r);'
 
 class FuncEnd(_End):
@@ -432,12 +470,15 @@ class Elif(IfStart):
     pyfmt = 'elif %(test)s:'
     jsfmt = '} else if (%(test)s) {'
 
-class ElideStart(BasePart):                 # SS Skip (elide) start
-    py = '_emit, _b = _.elidestart()'
-    js = '_.elidestart()'
-class ElideEnd(BasePart):                 # SE Skip (elide) end
-    py = '_noelide, _content, _emit, _b = _.elidecheck()'
-    js = '_content = _.pop();'
+class ElideStart(ArgPart):                 # SS Skip (elide) start
+    adjust = 1
+    fields = []
+    pyfmt = '%(emit)s = _.elidestart()'
+    jsfmt = '_.elidestart()'
+class ElideEnd(ArgPart):                 # SE Skip (elide) end
+    adjust = -1
+    pyfmt = '_noelide, _content = _.elidecheck(%(emit)s)'
+    jsfmt = '_content = _.pop();'
     def addto(self, block):
         block.top.add(
             self,
@@ -478,24 +519,33 @@ class For2(_Tmp):         # F2 for loop 2 var start (pass triple as arg)
 
 class ForEnd(_End): pass               # FD for loop done
 # -------- Set
-class SetStart(BasePart):                 # LS Local (set) start
-    py = '_emit, _b = _.push()'
-    js = '_.push()'
+class SetStart(ArgPart):                 # LS Local (set) start
+    fields = []
+    adjust = 1
+    pyfmt = '%(emit)s = tatlrt.Buf()'
+    jsfmt = '_.push()'
+
 class SetEnd(ArgPart):
     fields = ['var']
-    pyfmt = '%(var)s, _emit, _b = _.pop()'
+    adjust = -1
+    pyfmt = '%(var)s = tatlrt.safejoin(%(emit)s)'
     jsfmt = '%(var)s = _.pop()'
 
 # -------- Use
-class UseStart(BasePart):                 # CS Call (use) start
-    py = '_emit, _b = _.push()'
-    js = '_.push()'
-class UseEnd0(BasePart):
-    py = 'inner, _emit, _b = _.pop()'
-    js = 'inner = _.pop()'
+class UseStart(ArgPart):                 # CS Call (use) start
+    adjust = 1
+    fields = []
+    pyfmt = '%(emit)s = tatlrt.Buf()'
+    jsfmt = '_.push()'
+class UseEnd0(ArgPart):
+    adjust = -1
+    fields = []
+    pyfmt = 'inner = tatlrt.safejoin(%(emit)s)'
+    jsfmt = 'inner = _.pop()'
     def __init__(self):
         BasePart.__init__(self)
         self.lvars = ['inner']
+
 class UseEndAuto(BasePart):
     def __init__(self, expr):
         BasePart.__init__(self)
@@ -513,19 +563,20 @@ class UseEndAuto(BasePart):
                     warn("Use arg %s not defined -- adding as parameter" % arg)
                     self.rvars.append(arg)
 
-    def code(self, target):
+    def code(self, target, state):
         if self.args:
-            expr = Call(self.expr, [Expr([], a, a) for a in self.args])
+            expr = EmitQExpr(Call(self.expr, [Expr([], a, a) for a in self.args]))
         else:
-            expr = Part(
-                '_emit(_.applyauto(%(0)s, locals()))',
-                'var func = %(0)s; _.emit(eval(_.applyautoexpr("func", func)))',
-                self.expr)
-        return expr.code(target)
+            expr = ApplyAuto(self.expr)
+        return expr.code(target, state)
 
+class ApplyAuto(ArgPart):
+    fields = ['expr']
+    pyfmt = '%(emit)s(_.applyauto(%(expr)s, locals()))'
+    jsfmt = 'var _func = %(expr)s; _.emit(eval(_.applyautoexpr("_func", _func)))'
 
 class UseEndArgs(ArgPart):
     fields = ['expr', 'callargs']
-    pyfmt = '_emit(_.applyargs(%(expr)s, %(callargs)s))'
+    pyfmt = '%(emit)s(_.applyargs(%(expr)s, %(callargs)s))'
     jsfmt = '_.emit(_.applyargs(this, %(expr)s, %(callargs)s))'
 

@@ -6,6 +6,7 @@ if not os.path.exists('tatl/ExprParser.py'):
     os.system(GRAKOCMD)
 
 from tatl import ExprParser, ExprSemantics, Compiler, IR, OpList, peephole
+import tatlrt
 import json
 import os, sys, re
 import readline
@@ -33,6 +34,7 @@ def compile():
     reload(ExprSemantics)
     reload(Compiler)
     reload(peephole)
+    reload(tatlrt)
     parser = ExprParser.ExprParser(
         parseinfo=parseinfo,
         semantics=ExprSemantics.ExprSemantics()

@@ -124,48 +124,52 @@ class EmitFmt(OpList.BasePart):
         self.fmt = fmt
         self.exprs = exprs
 
-    def code(self, target):
+    def code(self, target, state):
         if target == 'py':
             if len(self.exprs) == 1:
-                py = self.exprs[0].code('py')
+                py = self.exprs[0].code('py', state)
             else:
-                py = '(%s)' % OpList.List(self.exprs).code('py')
-            return self.Code('_emit(%r %% %s)' % (self.fmt, py))
+                py = '(%s)' % OpList.List(self.exprs).code('py', state)
+            return self.Code('%s(%r %% %s)' % (state.emitvar(self), self.fmt, py))
         elif target == 'js':
             code = repr(unicode(self.fmt))[1:]  # without u prefix
             fmt = code[0]+'+%s+'+code[0]
-            code %= tuple([fmt % e.code('js') for e in self.exprs])
+            code %= tuple([fmt % e.code('js', state) for e in self.exprs])
             return self.Code('_.emit(%s);' % code)
 
 class UseBuf(Peepholer):
     cls = (IR._Emit, IR.EmitQText)
     def optimize_run(self, ops):
-        py = '_b'
-        for op in ops:
+        pyfmt = '%(emit)s'
+        exprs = {}
+        for n, op in enumerate(ops):
+            var = 'e'+str(n)
+            binop = '+'
             if isinstance(op, IR.EmitQText):
-                py = '(%s) + %r' % (py, op.val)
+                expr = IR.Value(repr(op.val))
             elif isinstance(op, IR.EmitUExpr):
-                py = '(%s) + %s' % (py, op.expr.code('py'))
+                expr = op.expr
             elif isinstance(op, IR.EmitQExpr):
-                py = '(%s) & %s' % (py, op.expr.code('py'))
+                expr = op.expr
+                binop = '&'
             else:
-                # abort
-                print "Unexpected op", op
-                return
-        op = Optimized(ops, py=py)
+                raise ValueError("Unexpected op", op)
+            exprs[var] = expr
+            pyfmt = '(%s %s (%%(%s)s))' % (pyfmt, binop, var)
+        op = PyOptimized(ops, pyfmt[1:-1], **exprs)
         return [op]
 
-class Optimized(OpList.BasePart):
-    def __init__(self, subparts, **exprs):
+class PyOptimized(OpList.ArgPart):
+    def __init__(self, subparts, pyfmt, **exprs):
         self.subparts = subparts
-        self.exprs = exprs
-        OpList.BasePart.__init__(self)
-        map(self.add, subparts)
-    def code(self, out):
-        if out in self.exprs:
-            code = self.exprs[out]
+        self.pyfmt = pyfmt
+        self.fields = exprs.keys()
+        OpList.ArgPart.__init__(self, *exprs.values())
+    def code(self, target, state):
+        if target == 'py':
+            return OpList.ArgPart.code(self, target, state)
         else:
-            # this only works with js :(
+            assert target == 'js'
             code = '\n'.join(p.code(out) for p in self.subparts)
         return self.Code(code)
 
@@ -185,7 +189,7 @@ class BufOrNotPeepholer(Peepholer):
         rest = self.ops[i:]
         UseBuf(ops1).optimize(target)
         CombineEmitsFmt(ops2).optimize(target)
-        self.ops[:i] = [IR.IfStart(IR.Impl('_b'))] + ops1 + [IR.Else()] + ops2 + [IR.IfEnd()]
+        self.ops[:i] = [IR.IfStart(IR.Impl('tatlrt.fast'))] + ops1 + [IR.Else()] + ops2 + [IR.IfEnd()]
 
 class CombineEmitsFmt(Peepholer):
     cls = (IR._Emit, IR.EmitQText)

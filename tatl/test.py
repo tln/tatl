@@ -6,6 +6,7 @@ from tatl import ExprParser, ExprSemantics, Compiler, front_matter
 import os, sys, json, glob
 from contextlib import contextmanager
 import traceback, cStringIO
+import tatlrt
 
 G_TESTS = 'grammar/test.txt'
 G_EXPECT = 'grammar/test.expect.json'
@@ -39,6 +40,8 @@ def test_grammar(update=0):
         except:
             print 'FAILURE:', line
             traceback.print_exc()
+            import pdb
+            pdb.post_mortem()
             fail += 1
         else:
             if line not in expect or expect[line] != out:
@@ -176,6 +179,7 @@ class Runner:
         else:
             self.log('--py:\n', py)
             c = test.out('.py', py, False)
+            tatlrt.use_fast(False)
             try:
                 pyrun = runpy(py).rstrip() + '\n'
             except:
@@ -183,6 +187,20 @@ class Runner:
             pyout = test.out('.py.html', pyrun, self.compare, self.update)
             self.log('->', c)
 
+            if tatlrt.use_fast(True):
+                self.log("checking fast")
+                try:
+                    pyfrun = runpy(py).rstrip() + '\n'
+                except:
+                    pyfrun = self.runpy_failed(test, py)
+                pyfout = test.out('.fast.py.html', pyfrun, self.compare, self.update)
+                if pyfrun != pyrun:
+                    self.run_mismatch(pyfout, pyout)
+            else:
+                self.log('Could not use fast module')
+                import pdb
+                pdb.set_trace()
+                print 'fast->', tatlrt.use_fast(True)
         try:
             js = Compiler.compile(inp, test.file, out='js', warn=self.warn)
         except:

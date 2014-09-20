@@ -18,7 +18,7 @@ def compile(s, source, out='py', warn=None, parser='html.parser'):
     if out == 'ir':
         return c.module.view()
     assert out in ('py', 'js')
-    code = c.module.code(out)
+    code = c.module.code(out, IR.CodeState())
     if out == 'js':
         #HACK!!! this has to be done throughout IR....
         code = code.replace("u'", "'").replace('u"', '"')
@@ -45,16 +45,39 @@ def _ensure_html_root(dom):
     return dom
 
 def main():
-    for inp in sys.argv[1:]:
-        if not inp.endswith(('.html', '.tatl')):
+    args = sys.argv[1:]
+
+    opts = {
+        t: '-'+t in args and not args.remove('-'+t)
+        for t in ('py', 'js')
+    }
+    if not (opts['py'] or opts['js']):
+        opts['py'] = opts['js'] = True
+
+    for inp in args:
+        if inp == '-':
+            html = sys.stdin.read()
+        elif not inp.endswith(('.html', '.tatl')):
             print "Expected .html or .tatl file:", inp
             continue
-        html = open(inp).read()
-        py = inp[:-5] + '.py'
-        open(py, 'w').write(compile(html, inp, 'py'))
-        js = inp[:-5] + '.js'
-        open(js, 'w').write(compile(html, inp, 'js'))
+        else:
+            with open(inp) as f:
+                html = f.read()
+            base = inp[:-4]
 
+        for target in 'py', 'js':
+            if opts[target]:
+                try:
+                    code = compile(html, inp, target)
+                except:
+                    import traceback, pdb
+                    traceback.print_exc()
+                    pdb.post_mortem()
+                if inp == '-':
+                    sys.stdout.write(code)
+                else:
+                    with open(base + target, 'w') as f:
+                        f.write(code)
 
 class Compiler:
     def __init__(self, source, warn=None):
@@ -226,6 +249,7 @@ class Compiler:
 
     def _process_set(self, ts, obj):
         obj.addto(ts.block)
+
     def _process_if(self, ts, test):
         test.addto(ts.block)
         ts.if_pending = 1
@@ -344,4 +368,4 @@ class Compiler:
 
     def warn(self, s):
         #TODO pass line number
-        print "*Warning:", s
+        print>>sys.stderr, "*Warning:", s

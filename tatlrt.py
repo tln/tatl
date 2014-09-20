@@ -15,13 +15,6 @@ def public(obj):
     __all__.append(obj.__name__)
     return obj
 
-try:
-    from fastbuf import Buf
-    bufjoin = unicode
-except:
-    Buf = list
-    bufjoin = u''.join
-
 # Compiler generates calls to tatlrt.bool, but it isnt a builtin that templates need to use.
 # TATL defines truthiness just like Python, so re=using the builtin works; tatlrt.js implements
 # Python-compatible logic.
@@ -32,8 +25,9 @@ bool = bool
 @public
 class filters:
     def _add(self, fn, _alias=re.compile('Alias: (\w+)')):
-        """Mark a function as a filter. Include Alias: name in the docstring to make a shortened alias.
-        Also add logic such that if used in def="" context (ie, given a function, it will return a wrapper)
+        """Mark a function as a filter. Include Alias: name in the docstring
+        to make a shortened alias. Also add logic such that if used in def=""
+        context (ie, given a function, it will return a wrapper)
         """
         def f(arg, *args, **kw):
             if callable(arg) and not (args or kw):
@@ -58,6 +52,7 @@ def range_excl(n, m):
 @filters._add
 class safe(unicode): "Quoted strings are 'safe' and do not get quoted again."
 _quote_safe = lambda s: s
+
 def _quote_str(o):
     """Escape a str/unicode object. Note that compiled code never uses ' for attributes and >
     doesn't needed to be escaped to form valid HTML. These replace calls are a big cost,
@@ -74,6 +69,32 @@ def _quote_other(o, q=_quote_str):
     if isinstance(o, (tuple, list)):
         return q(' '.join(map(unicode, o)))
     return q(unicode(o))
+
+# Buffer logic, use fastbuf if available or lists if not
+# This can be turned off/on at runtime, to enable testing using both paths
+def use_fast(flag):
+    "Turn on fast mode, if possible. Return whether fast mode is in use."
+    global Buf, join, safejoin, fast
+    if flag:
+        try:
+            from fastbuf import Buf, set_safe_class
+            set_safe_class(safe)
+            join = unicode
+            safejoin = safe
+            fast = True
+            return True
+        except ImportError:
+            pass
+    def Buf():
+        return [].append
+    def join(b):
+        return u''.join(b.__self__)
+    def safejoin(b):
+        return safe(join(b))
+    fast = False
+    return False
+
+use_fast(True)
 
 # Context objects, most compiler code constructs go through one of these
 class _Context(object):
@@ -98,18 +119,11 @@ class _Context(object):
 
     def __init__(self, ctxname):
         self.qstack = [0]  # track whether .quote has been called with an empty value
-        self.estack = [] # stack of bufs
         self.mkquote(ctxname)
-        self.push()
         self.get1 = _get1
-        ##self.quote = unicode
-        #self.cstack = []   # stack quote functions
-        #self.qcache = {}
-        #self.pushctx(ctxname)
-        #self.itemsUnsorted = dict.iteritems  # debug
 
     def buffer(self):
-        return None if Buf is list else self.buf
+        return [].append if Buf is list else self.buf
 
     def mkquote(self, ctxname):
         # Build a quoting function from type switches
@@ -149,35 +163,19 @@ class _Context(object):
         self.qstack[-1] = 1
         return ''
 
-    def push(self):
-        self.estack.append(Buf())
-        b = self.buf = self.estack[-1]
-        e = self.emit = b.append
-        return e, self.buffer()
-
     def star(self):
         return _Star(self.estack[-1], self.quote), + self.push()
 
     def plusplus(self):
         return _Plusplus(self.estack[-1]), + self.push()
 
-    def pop(self):
-        result = safe(bufjoin(self.buf))
-        self.estack.pop()
-        b = self.buf = self.estack[-1]
-        e = self.emit = b.append
-        return result, e, self.buffer()
-
-    def result(self):
-        return safe(''.join(map(bufjoin, self.estack)))
-
     def elidestart(self):
         self.qstack.append(0)
-        return self.push()
+        return Buf()
 
-    def elidecheck(self):
-        c, e, b = self.pop()
-        return not self.qstack.pop(), c, e, b
+    def elidecheck(self, emit):
+        checkresult = not (getattr(emit, 'blank_flag', 0) or self.qstack.pop())
+        return checkresult, safejoin(emit)
 
     def load(self, name, path):
         o = __import__(name)   # TODO we need a whitelist here
@@ -305,7 +303,7 @@ class _Plusplus:
 
 def _ctx(name):
     c = _Context(name)
-    return c, c.quote, c.emit, c.buffer()
+    return c, c.quote
 
 _attr = _Context('attr')
 # forloop, swiss army knife of looping

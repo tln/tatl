@@ -31,15 +31,10 @@ class ExprSemantics(ExprParser.ExprParser):
         return result
 
     def setif(self, ast):
-        n = ast.var
-        fmt = '{0} = %(0)s {1} %(1)s'.format
-        result = IR.Part(fmt(n, 'or'), fmt(n, '||'), IR.Expr([n], n, n), ast.expr)
-        result.out()
-        return result
+        return IR.AsgnIf(IR.Rvar(ast.var), ast.expr)
 
     def lset(self, ast):
-        fmt = '%(lvar)s = %(expr)s'
-        return IR.Part(fmt, fmt, lvar=ast.lvar, expr=ast.expr)
+        return IR.Asgn(ast.lvar, ast.expr)
 
     def dottedPath(self, ast):
         return IR.Path(ast)
@@ -84,7 +79,7 @@ class ExprSemantics(ExprParser.ExprParser):
         return self._join_with_star(ast, '{%s}', ', ', 'merge(%s)')
 
     def member(self, ast):
-        return IR.Part('%(0)s: %(1)s', '%(0)s: %(1)s', ast.key, ast.val)
+        return IR.Member(ast.key, ast.val)
 
     def barename(self, name):
         return IR.Value(repr(name))
@@ -106,7 +101,7 @@ class ExprSemantics(ExprParser.ExprParser):
 
     def comp(self, ast):
         if len(ast) == 1:
-            return IR.Part('bool(%(0)s)', 'tatlrt.bool(%(0)s)', ast[0])
+            return IR.Bool(ast[0])
         else:
             # ast is arg, op, arg2, op, arg3 etc
             args = ast[::2]
@@ -143,19 +138,10 @@ class ExprSemantics(ExprParser.ExprParser):
             return ast.test
         elif ast.true:
             # test ? true  /  test ? true : false
-            return IR.Part(
-                '%(true)s if %(test)s else %(false)s',
-                '%(test)s ? %(true)s : %(false)s',
-                test=ast.test, true=ast.true,
-                false=ast.false or IR.Expr([], 'None', 'null'),
-                )
+            return IR.Ternary(ast.test, ast.true, ast.false or IR.Null)
         else:
             # test ?: false
-            return IR.Part(
-                '(%(test)s or %(false)s)',
-                '((%(test)s) || (%(false)s))',
-                test=ast.test, false=ast.false
-                )
+            return IR.Or(ast.test, ast.false)
 
     def list(self, ast):
         if ast == ['[', ']']: return IR.Expr([], '[]')
