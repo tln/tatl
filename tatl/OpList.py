@@ -1,6 +1,12 @@
 from collections import namedtuple, OrderedDict
 import re
 
+str_targets = {
+    'py': repr,
+    'js': lambda s: repr(s).lstrip('u')
+}
+
+
 class CodeState:
     depth = 0
 
@@ -114,46 +120,32 @@ class BasePart(Op):
     def addto(self, block):
         block.top.add(self)
 
-class ArgExpr(BasePart):
-    fields = []
-    lvarfields = []
-    rvarfields = []
-    noaddfields = []
-    def __init__(self, *args):
-        BasePart.__init__(self)
-        assert len(args) == len(self.fields)
-        d = dict(zip(self.fields, args))
-        self.__dict__.update(d)
-        self.lvars = [d[k] for k in self.lvarfields]
-        self.rvars = [d[k] for k in self.rvarfields]
-
-    def __repr__(self):
-        n = self.__class__.__name__
-        args = tuple(getattr(self, attr) for attr in self.fields)
-        return n + str(args)
-
-    def code(self, target, state):
-        self.emit = state.emitvar(self)
-        fmt = getattr(self, target+'fmt')
-        return self.Code(fmt % self.__dict__)
-
 class ArgPart(BasePart):
     fields = []
     pyfmt = jsfmt = None #'*not implemented*'
+    coerce = {}
     def __init__(self, *args):
         BasePart.__init__(self)
         assert len(args) == len(self.fields)
-        self.__dict__.update(dict(zip(self.fields, args)))
-        map(self.add, args)
+        self.d = []
+        for field, arg in zip(self.fields, args):
+            setattr(self, field, arg) # expose arg as passed, used by eg peepholers
+            if not isinstance(arg, BasePart):
+                arg = self.coerce[field](arg)
+            self.add(arg)
+            self.d.append((field, arg))
 
     def code(self, target, state):
         fmt = getattr(self, target+'fmt')
         d = {
-            f: getattr(self, f).code(target, state)
-            for f in self.fields
+            k: v.code(target, state)
+            for k, v in self.d
         }
         d['emit'] = state.emitvar(self)
-        return self.Code(fmt % d)
+        out = self.Code(fmt % d)
+        if target == 'js':
+            assert not re.search("""u(['"]).*?\\1""", out)
+        return out
 
 class List(BasePart):
     def __init__(self, partlist, join=', ', paren='%s'):
@@ -206,6 +198,19 @@ class Value(BasePart):
         BasePart.__init__(self)
         self.py = py
         self.js = js or py
+
+class Str(BasePart):
+    def __init__(self, value):
+        BasePart.__init__(self)
+        self.py = repr(value)
+        self.js = self.py.lstrip('u')
+
+class StrList(BasePart):
+    def __init__(self, value):
+        assert isinstance(value, list)
+        BasePart.__init__(self)
+        self.py = repr(value)
+        self.js = '[%s]' % ', '.join(map(str_targets['js'], value))
 
 class Impl(BasePart):
     "Reference to implementation variable"

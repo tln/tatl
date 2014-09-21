@@ -223,13 +223,9 @@ Built in filters
 
 ###Needed and Possible changes
 
-* Remove u'' -> '' JS hack
 * Contextual quoting
 * Placeholders -- need fixes
 * Limit loading to specified modules
-* IR /OpList -- lvars / rvars etc should be lazy per target like code().
-* Move all code out of ExprSemantics.
-* Simplify the logic, there are too many base classes.
 * packaging... npm, pip?
 * Watch compiler
 * Client code to reload changes

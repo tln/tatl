@@ -20,8 +20,8 @@ def compile(s, source, out='py', warn=None, parser='html.parser'):
     assert out in ('py', 'js')
     code = c.module.code(out, IR.CodeState())
     if out == 'js':
-        #HACK!!! this has to be done throughout IR....
-        code = code.replace("u'", "'").replace('u"', '"')
+        # detect unicode literals in JS
+        assert not re.search("""u(['"]).*?\\1""", out)
     return code
 
 def _ensure_html_root(dom):

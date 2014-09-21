@@ -309,7 +309,7 @@ def runjs(jscode):
     with open('_tmp.js', 'w') as f:
         f.write(jscode+'\n\n')
         f.write('''process.stdout.write(
-        html.call({a:'a', b:[1,2], c:1, d:{'a':'AA', 'b': [1,2,3]}}).toString()
+        exports.html.call({a:'a', b:[1,2], c:1, d:{'a':'AA', 'b': [1,2,3]}}).toString()
         )\n''')
     return os.popen('node _tmp.js 2>&1').read().decode('utf8')
 

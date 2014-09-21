@@ -112,9 +112,11 @@ class Def(namedtuple('Def', 'name args result filters'), Out):
             FuncEnd(),
             *[Filter(self.name, filt) for filt in self.filters]
         )
-        block.bot.add()
+        block.bot.add(
+            BindAndExport(self.name)
+        )
 
-class Result(ArgExpr):
+class Result(ArgPart):
     fields = []
     pyfmt = 'tatlrt.safejoin(%(emit)s)'
     jsfmt = '_.result()'
@@ -156,9 +158,6 @@ class Set(namedtuple('Set', 'var filters'), Out):
 
 class Top(namedtuple('Top', 'set exprs emit rest'), Out):
     def addto(self, block):
-        #import pdb
-        #pdb.set_trace()
-
         self.add_setup(block)
         e = self.emit
         if not e: return
@@ -270,16 +269,19 @@ class VarPath(BasePath):
             return var
         elif len(paths) == 1:
             path = paths[0]
-            return '_.get1(%s, %r)' % (var, path)
+            return '_.get1(%s, %s)' % (var, str_targets[target](path))
         else:
-            return '_.get(%s, %r)' % (var, paths)
+            return '_.get(%s, [%s])' % (var, ', '.join(map(str_targets[target], paths)))
 
     def args(self, functions):
         fn = functions.get(self.paths[0])
         if fn is None: return None
-        #import pdb
-        #pdb.set_trace()
         return fn.argnames()
+
+class ExtPath(ArgPart, BasePath):
+    fields = ['module', 'path']
+    coerce = {'module': Str, 'path': StrList}
+    pyfmt = jsfmt = '_.load(%(module)s, %(path)s)'
 
 class AsgnIf(ArgPart):
     fields = ['var', 'expr']
@@ -335,12 +337,6 @@ class OpChain(BasePart):
             ]
         return ' '.join(parts)
 
-class ExtPath(Expr, BasePath):
-    def __init__(self, module, path):
-        self.module = module
-        self.path = path
-        Expr.__init__(self, [], '_.load(%r, %r)' % (module, path))
-
 class Lookup(ArgPart):
     fields = ['expr', 'key']
     pyfmt = jsfmt = '_.get1(%(expr)s, %(key)s)'
@@ -348,9 +344,7 @@ class Lookup(ArgPart):
 class Call(ArgPart):
     fields = ['fn', 'args']
     pyfmt = jsfmt = '%(fn)s(%(args)s)'
-    def __init__(self, fn, args):
-        if not isinstance(args, List): args = List(args)
-        ArgPart.__init__(self, fn, args)
+    coerce = {'args': List}
 
 class Args(BasePart):
     def __init__(self, args):
@@ -404,20 +398,17 @@ class Regex(ArgPart):
         self.jsfmt = ('!' if negate else '') + '_.search(/%s/, %%(expr)s)' % pat
         ArgPart.__init__(self, expr)
 
-# -------- Bases/helpers for Ops
-class _Val(ArgExpr): fields = ['val']
-class _Var(ArgExpr): fields = ['var']
-class _Expr(ArgPart): fields = ['expr']
 class _End(BasePart):
     py = '# end'
     js = '}'
     Code = Dedent
 
-
 # -------- Emitting Ops
-class EmitQText(_Val):
-    pyfmt = '%(emit)s(%(val)r)'
-    jsfmt = '_.emit(%(val)r);'
+class EmitQText(ArgPart):
+    fields = ['val']
+    coerce = {'val': Str}
+    pyfmt = '%(emit)s(%(val)s)'
+    jsfmt = '_.emit(%(val)s);'
 
 class _Emit(ArgPart):
     fields = ['expr']
@@ -445,7 +436,7 @@ class FuncDef(ArgPart):
     fields = ['name', 'args']
     Code = Indent
     pyfmt = 'def %(name)s(%(args)s):'
-    jsfmt = 'exports.%(name)s = tatlrt._bind(function %(name)s(%(args)s) {'
+    jsfmt = 'function %(name)s(%(args)s) {'
     def code(self, target, state):
         code = ArgPart.code(self, target, state)
         if target == 'js':
@@ -453,25 +444,36 @@ class FuncDef(ArgPart):
                 code += '\n    %(arg)s = %(arg)s || this.%(arg)s' % {'arg': arg.lvar}
         return self.Code(code)
 
-class FuncPreamble(ArgExpr):
+class FuncPreamble(ArgPart):
     fields = ['context']
-    pyfmt = '_, _q = tatlrt.ctx(%(context)r); %(emit)s = tatlrt.Buf()'
-    jsfmt = 'var _ = tatlrt.ctx(%(context)r);'
+    coerce = {'context': Str}
+    pyfmt = '_, _q = tatlrt.ctx(%(context)s); %(emit)s = tatlrt.Buf()'
+    jsfmt = 'var _ = tatlrt.ctx(%(context)s);'
 
 class FuncEnd(_End):
-    js = '});'
+    pass
+
+class BindAndExport(ArgPart):
+    fields = ['name']
+    coerce = {'name': Rvar}
+    pyfmt = ""
+    jsfmt = "exports.%(name)s = tatlrt._bind(%(name)s)"
+
+
 class Return(ArgPart):
     fields = ['expr']
     jsfmt = pyfmt = 'return %(expr)s'
 
-class Import(ArgExpr):
+class Import(ArgPart):
     pyfmt = 'import %(arg)s'
-    jsfmt = "var %(arg)s = require(%(arg)r)"    # hack! ./t_tmpl
-    lvarfields = fields = ['arg']
+    jsfmt = "var %(arg)s = require('%(arg)s')"    # hack! ./t_tmpl
+    fields = ['arg']
+    coerce = {'arg': Lvar}
 
-class InitLocal(_Var):
-    lvarfields = ['var']
-    pyfmt = '%(var)s = _kw.get(%(var)r)'
+class InitLocal(ArgPart):
+    fields = ['var']
+    coerce = {'var': Lvar}
+    pyfmt = '%(var)s = _kw.get(%(var)s)'
     jsfmt = 'var %(var)s = this.%(var)s'
 
 
@@ -488,6 +490,7 @@ class InitLvars(BasePart):  # SV Setup local vars
 class Filter(ArgPart):
     fields = ['name', 'filt']
     pyfmt = jsfmt = '%(name)s = %(filt)s(%(name)s)'
+    coerce = {'name': Lvar}
 # -------- If
 class IfStart(ArgPart):                 # IS If start
     fields = ['test']
@@ -504,12 +507,13 @@ class Elif(IfStart):
     pyfmt = 'elif %(test)s:'
     jsfmt = '} else if (%(test)s) {'
 
-class ElideStart(ArgPart):                 # SS Skip (elide) start
+class ElideStart(ArgPart):
     adjust = 1
     fields = []
     pyfmt = '%(emit)s = _.elidestart()'
     jsfmt = '_.elidestart()'
-class ElideEnd(ArgPart):                 # SE Skip (elide) end
+
+class ElideEnd(ArgPart):
     adjust = -1
     pyfmt = '_noelide, _content = _.elidecheck(%(emit)s)'
     jsfmt = '_content = _.pop();'
@@ -529,7 +533,7 @@ class _Tmp(ArgPart):
         _Tmp.tmp += 1
         ArgPart.__init__(self, *args+(tmp,))
 
-class For1(_Tmp):            # F1 for loop 1 var start (pass pair as arg)
+class For1(_Tmp):
     fields = ['n1', 'expr', 'tmp']
     pyfmt = 'for %(n1)s in _.iter(%(expr)s):'
     jsfmt = 'for (_i in (%(tmp)s = %(expr)s)) { %(n1)s = %(tmp)s[_i];'
@@ -537,7 +541,7 @@ class For1(_Tmp):            # F1 for loop 1 var start (pass pair as arg)
     def pragma(self, pragma):
         pass
 
-class For2(_Tmp):         # F2 for loop 2 var start (pass triple as arg)
+class For2(_Tmp):
     fields = ['n1', 'n2', 'expr', 'tmp']
     pyfmt = 'for %(n1)s, %(n2)s in _.items(%(expr)s):'
     pyuns = pyfmt.replace('items(', 'itemsUnsorted(')
@@ -551,9 +555,10 @@ class For2(_Tmp):         # F2 for loop 2 var start (pass triple as arg)
             self.pyfmt = self.pyuns
             self.jsfmt = self.jsuns
 
-class ForEnd(_End): pass               # FD for loop done
+class ForEnd(_End): pass
+
 # -------- Set
-class SetStart(ArgPart):                 # LS Local (set) start
+class SetStart(ArgPart):
     fields = []
     adjust = 1
     pyfmt = '%(emit)s = tatlrt.Buf()'
@@ -566,7 +571,7 @@ class SetEnd(ArgPart):
     jsfmt = '%(var)s = _.pop()'
 
 # -------- Use
-class UseStart(ArgPart):                 # CS Call (use) start
+class UseStart(ArgPart):
     adjust = 1
     fields = []
     pyfmt = '%(emit)s = tatlrt.Buf()'
@@ -577,7 +582,7 @@ class UseEnd0(ArgPart):
     pyfmt = 'inner = tatlrt.safejoin(%(emit)s)'
     jsfmt = 'inner = _.pop()'
     def __init__(self):
-        BasePart.__init__(self)
+        ArgPart.__init__(self)
         self.lvars = ['inner']
 
 class UseEndAuto(BasePart):

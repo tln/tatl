@@ -82,7 +82,7 @@ class ExprSemantics(ExprParser.ExprParser):
         return IR.Member(ast.key, ast.val)
 
     def barename(self, name):
-        return IR.Value(repr(name))
+        return IR.Str(name)
 
     def range(self, ast):
         arg1, op, arg2 = ast
