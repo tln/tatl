@@ -2,3 +2,6 @@
 tests/out
 _tmp.js
 .DS_Store
+build/
+dist/
+tatl.egg-info/
