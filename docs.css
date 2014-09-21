@@ -1,0 +1,64 @@
+pre {
+	background: #f7f7f7;
+	border: 1px solid #d7d7d7;
+	margin: 1em 1.75em;
+	padding: .25em;
+}
+
+div.filename {
+	font-family: monospace;
+	padding: 0.25em;
+	margin: 1em 1.75em 0 1.75em;
+	border: 1px solid gray;
+	border-bottom: none;
+	display: inline;
+	line-height: 1.75em;
+	color: #dff;
+	background: #888;
+}
+div.filename + pre { 
+	margin-top: 0; 
+}
+
+pre code {
+	color: #00f;
+}
+pre code .tag {
+	color: #080;
+}
+pre code .tag.special {
+	background: #dfd;
+}
+pre code .attr {
+	color: #808;
+}
+pre code .attr .attrval {
+	color: #606;
+}
+pre code .attr.special {
+	background: #fef;
+}
+
+pre var {
+	background: #fff;
+	color: #800;
+}
+pre code .attr .attrval var {
+	color: #a0a;
+	background: #fff;
+}
+
+pre .comment {
+	color: #888;
+}
+
+nav {
+	background: #ccf;
+	color: #822;
+}
+article nav span {
+	display: block;
+	width: 60%;
+	margin: 0 auto;
+	text-align: center;
+}
