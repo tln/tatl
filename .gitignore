@@ -5,3 +5,4 @@ _tmp.js
 build/
 dist/
 tatl.egg-info/
+docs/gen.py
