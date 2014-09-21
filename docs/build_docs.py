@@ -1,4 +1,4 @@
-import os, sys
+import os, sys, shutil
 
 dir = os.path.split(__file__)[0]
 if dir:
@@ -14,3 +14,4 @@ except:
     traceback.print_exc()
     pdb.post_mortem()
 open('../gh-pages/index.html', 'w').write(html.encode('utf-8'))
+shutil.copyfile('docs.css', '../gh-pages/docs.css')
