@@ -15,11 +15,9 @@ class CodeState:
         before when increasing, after when decreasing. Usually code expressions
         that need to decrease depth need to use the previous value.
         """
-        #print id(self), self.depth, op.adjust,
         assert op.adjust in (-1, 0, 1)
         self.depth += op.adjust
         result = '_emit%d' % (self.depth + (op.adjust < 0))
-        #print '->', result
         return result
 
 class Block:
@@ -32,7 +30,6 @@ class Block:
         return '<block @%x parent=%r>' % (id(self), self.parent)
 
     def done(self):
-        #print 'Done:', repr(self)
         self.top.combine(self.bot)
         self.bot = None
         return self.top
@@ -120,6 +117,9 @@ class BasePart(Op):
     def addto(self, block):
         block.top.add(self)
 
+    def imports(self):
+        return []
+
 class ArgPart(BasePart):
     fields = []
     pyfmt = jsfmt = None #'*not implemented*'
@@ -202,6 +202,7 @@ class Value(BasePart):
 class Str(BasePart):
     def __init__(self, value):
         BasePart.__init__(self)
+        self.value = value
         self.py = repr(value)
         self.js = self.py.lstrip('u')
 
@@ -312,3 +313,8 @@ class OpList:
     def optimizers(self, target):
         return []
 
+    def imports(self):
+        l = []
+        for op in self.pyops:
+            l += op.imports()
+        return l

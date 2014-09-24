@@ -1,3 +1,15 @@
+if (typeof define !== 'function') { var define = require('amdefine')(module) }
+define([], function () {
+var exports = {};
+
+exports.templates = {};
+exports.add_template = function (modname, template_exports) {
+    exports.templates._last = modname;
+    exports.templates[modname] = template_exports;
+}
+exports.last = function () {
+    return exports.templates[exports.templates._last];
+}
 exports.ctx = function(quotestyle) {
 	var cur = []
 	return {
@@ -35,7 +47,10 @@ exports.safe = function (s) {
 }
 
 function _keys(object, unsorted) {
-    if (object.length != undefined) {
+    if (object === null || object === undefined) {
+        return []
+    }
+    if (object.length !== undefined) {
         return exports.range(0, object.length, false)
     } else {
         var l = []
@@ -49,6 +64,15 @@ var _proto = {
 	emit: function (s) {
 		this.cur.push(s)
 	},
+    u: function u(s) {
+        if (s === '') return '';
+        if (s === 0) return '0';
+		if (!s) {
+			this.qstack[0] = false
+            return '';
+        }
+        return s+'';
+    },
 	q: function q(s) {
         if (s === '') return ''
         if (s === 0) return '0'
@@ -99,6 +123,17 @@ var _proto = {
 	load: function (module, paths) {
 		return this.get(require('./tests/out/'+module), paths)
 	},
+    iter: function (obj) {
+        if (obj === null || obj === undefined || obj === '') {
+            return []
+        } else if (obj.length !== undefined) {
+            return obj
+        } else if (typeof object == 'string' || object instanceof String) {
+            return [obj]
+        } else {
+            return _.keys(obj)
+        }
+    },
     keys: _keys,
     keysUnsorted: function (object) { return _keys(object, true); },
     search: function (regex, object) {
@@ -314,4 +349,6 @@ exports.attrs = function (attdict, s) {
 
 exports.len = function (obj) {
     return obj.length
-}
+};
+
+return exports;});

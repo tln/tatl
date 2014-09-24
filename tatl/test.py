@@ -209,7 +209,7 @@ class Runner:
             self.log('--js:\n', js)
             c = test.out('.js', js, False)
             self.log('->', c)
-            jsrun = runjs(js).rstrip() + '\n'
+            jsrun = runjsfile(c).rstrip() + '\n'
             jsout = test.out('.js.html', jsrun, self.compare, self.update)
 
         if pyrun and jsrun and pyrun != jsrun:
@@ -305,13 +305,16 @@ def runpy(pycode):
     exec pycode in d, d
     return d['html'](a='a', b=[1, 2], c=1, d={'a':'AA', 'b': [1,2,3]})
 
-def runjs(jscode):
-    with open('_tmp.js', 'w') as f:
-        f.write(jscode+'\n\n')
-        f.write('''process.stdout.write(
-        exports.html.call({a:'a', b:[1,2], c:1, d:{'a':'AA', 'b': [1,2,3]}}).toString()
-        )\n''')
-    return os.popen('node _tmp.js 2>&1').read().decode('utf8')
+def runjsfile(jsfile):
+    rel_mod = os.path.splitext(jsfile)[0]
+    assert "\\" not in rel_mod
+    assert "'" not in rel_mod
+    data = "{a: 'a', b: [1, 2], c:1, d: {a:'AA', b: [1,2,3]}}"
+    js = "require('./%s').html.call(%s)+'';" % (rel_mod, data)
+    assert '"' not in js
+    cmd = 'node -p -e "%s" 2>&1' % js
+    print>>sys.stderr, cmd
+    return os.popen(cmd).read().decode('utf8')
 
 if __name__ == '__main__':
     print "Running tests... (pass -u to update)"

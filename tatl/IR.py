@@ -7,23 +7,31 @@ def warn(*args):
     print 'WARN:', args
 
 # --------- Compiler API
+class Modformat:
+    def addto(self, modname, imports, block):
+        block.top.add(ModuleStart(modname, imports))
+        block.bot.add(ModuleEnd())
+
 class Module:
-    def __init__(self, source):
+    def __init__(self, source, modname, modformat):
         self.block = Block(IR(), repr(self))
         self.functions = OrderedDict()
-        self.imports = set()
+        self.modformat = modformat
+        self.source = source
+        self.modname = modname
+        self.imports = []
         self.add_import('tatlrt')
+
+    def add_import(self, module):
+        if module not in self.imports:
+            self.imports.append(module)
 
     def startdef(self, funcdef):
         fn = self.functions[funcdef.name.lvar] = Function(self, funcdef)
         return fn
 
-    def add_import(self, module):
-        if module not in self.imports:
-            self.imports.add(module)
-            Import(module).addto(self.block)
-
     def done(self):
+        self.modformat.addto(self.modname, self.imports, self.block)
         for fn in self.functions.values():
             self.block.top.combine(fn.done())
         return self.block.done()
@@ -65,7 +73,7 @@ class Function:
         code.combine(self.init.bot)
         code.optimize()
 
-        lvars = set(self.args.lvars) | self.module.imports | set(self.module.functions)
+        lvars = set(self.args.lvars) | set(self.module.imports) | set(self.module.functions)
         hasvar = lvars.copy()
         for op in code.pyops:
             if isinstance(op, FuncEnd):
@@ -91,6 +99,21 @@ class IR(OpList):
         from tatl.peephole import optimizers
         return optimizers[target]
 
+# -------- Modue constructs
+class ModuleStart(BasePart):
+    def __init__(self, modname, imports):
+        BasePart.__init__(self)
+        self.py = 'import ' + ', '.join(imports)
+        self.js = '''\
+if (typeof define !== 'function') { var define = require('amdefine')(module) }
+define([%s], function (%s) {
+var exports = {};
+tatlrt.add_template('%s', exports);
+''' % (', '.join(map(str_targets['js'], imports)), ', '.join(imports), modname)
+
+class ModuleEnd(BasePart):
+    py = ''
+    js = 'return exports;});\n'
 
 # -------- Major constructs created by ExprSemantics
 class Def(namedtuple('Def', 'name args result filters'), Out):
@@ -119,7 +142,7 @@ class Def(namedtuple('Def', 'name args result filters'), Out):
 class Result(ArgPart):
     fields = []
     pyfmt = 'tatlrt.safejoin(%(emit)s)'
-    jsfmt = '_.result()'
+    jsfmt = 'tatlrt.safe(%(emit)s)'
 
 class If(namedtuple('If', 'set test'), Out):
     def addto(self, block):
@@ -283,6 +306,9 @@ class ExtPath(ArgPart, BasePath):
     coerce = {'module': Str, 'path': StrList}
     pyfmt = jsfmt = '_.load(%(module)s, %(path)s)'
 
+    def imports(self):
+        return [self.module.value]
+
 class AsgnIf(ArgPart):
     fields = ['var', 'expr']
     pyfmt = '%(var)s = %(var)s or %(expr)s'
@@ -408,7 +434,7 @@ class EmitQText(ArgPart):
     fields = ['val']
     coerce = {'val': Str}
     pyfmt = '%(emit)s(%(val)s)'
-    jsfmt = '_.emit(%(val)s);'
+    jsfmt = '%(emit)s += %(val)s;'
 
 class _Emit(ArgPart):
     fields = ['expr']
@@ -416,12 +442,12 @@ class _Emit(ArgPart):
         return self.expr
 class EmitQExpr(_Emit):
     pyfmt = '%(emit)s(_q(%(expr)s))'
-    jsfmt = '_.emit(_.q(%(expr)s));'
+    jsfmt = '%(emit)s += _.q(%(expr)s);'
     def fmtexpr(self):
         return QExpr(self.expr)
 class EmitUExpr(_Emit):
     pyfmt = '%(emit)s(u"%%s" %% %(expr)s)'
-    jsfmt = '_.emit(%(expr)s);'
+    jsfmt = '%(emit)s += %(expr)s;'
 
 class QExpr(ArgPart):
     fields = ['expr']
@@ -448,7 +474,7 @@ class FuncPreamble(ArgPart):
     fields = ['context']
     coerce = {'context': Str}
     pyfmt = '_, _q = tatlrt.ctx(%(context)s); %(emit)s = tatlrt.Buf()'
-    jsfmt = 'var _ = tatlrt.ctx(%(context)s);'
+    jsfmt = 'var _ = tatlrt.ctx(%(context)s), %(emit)s = "";'
 
 class FuncEnd(_End):
     pass
@@ -511,12 +537,12 @@ class ElideStart(ArgPart):
     adjust = 1
     fields = []
     pyfmt = '%(emit)s = _.elidestart()'
-    jsfmt = '_.elidestart()'
+    jsfmt = '_.elidestart(); %(emit)s = "";'
 
 class ElideEnd(ArgPart):
     adjust = -1
     pyfmt = '_noelide, _content = _.elidecheck(%(emit)s)'
-    jsfmt = '_content = _.pop();'
+    jsfmt = '_content = %(emit)s;'
     def addto(self, block):
         block.top.add(
             self,
@@ -536,7 +562,7 @@ class _Tmp(ArgPart):
 class For1(_Tmp):
     fields = ['n1', 'expr', 'tmp']
     pyfmt = 'for %(n1)s in _.iter(%(expr)s):'
-    jsfmt = 'for (_i in (%(tmp)s = %(expr)s)) { %(n1)s = %(tmp)s[_i];'
+    jsfmt = '''for (var Ti = 0, T = _.iter(%(expr)s), Tn = T.length; Ti < Tn; Ti++) { %(n1)s = T[Ti];'''.replace('T', '%(tmp)s')
     Code = Indent
     def pragma(self, pragma):
         pass
@@ -562,25 +588,26 @@ class SetStart(ArgPart):
     fields = []
     adjust = 1
     pyfmt = '%(emit)s = tatlrt.Buf()'
-    jsfmt = '_.push()'
+    jsfmt = '%(emit)s = "";'
 
 class SetEnd(ArgPart):
     fields = ['var']
     adjust = -1
     pyfmt = '%(var)s = tatlrt.safejoin(%(emit)s)'
-    jsfmt = '%(var)s = _.pop()'
+    jsfmt = '%(var)s = tatlrt.safe(%(emit)s);'
 
 # -------- Use
 class UseStart(ArgPart):
     adjust = 1
     fields = []
     pyfmt = '%(emit)s = tatlrt.Buf()'
-    jsfmt = '_.push()'
+    jsfmt = '%(emit)s = "";'
+
 class UseEnd0(ArgPart):
     adjust = -1
     fields = []
     pyfmt = 'inner = tatlrt.safejoin(%(emit)s)'
-    jsfmt = 'inner = _.pop()'
+    jsfmt = 'inner = tatlrt.safe(%(emit)s);'
     def __init__(self):
         ArgPart.__init__(self)
         self.lvars = ['inner']
@@ -612,10 +639,9 @@ class UseEndAuto(BasePart):
 class ApplyAuto(ArgPart):
     fields = ['expr']
     pyfmt = '%(emit)s(_.applyauto(%(expr)s, locals()))'
-    jsfmt = 'var _func = %(expr)s; _.emit(eval(_.applyautoexpr("_func", _func)))'
+    jsfmt = 'var _func = %(expr)s; %(emit)s += eval(_.applyautoexpr("_func", _func));'
 
 class UseEndArgs(ArgPart):
     fields = ['expr', 'callargs']
     pyfmt = '%(emit)s(_.applyargs(%(expr)s, %(callargs)s))'
-    jsfmt = '_.emit(_.applyargs(this, %(expr)s, %(callargs)s))'
-
+    jsfmt = '%(emit)s += _.applyargs(this, %(expr)s, %(callargs)s)'

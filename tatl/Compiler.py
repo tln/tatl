@@ -1,5 +1,5 @@
 import bs4
-import sys
+import sys, os
 import json, copy, re
 import ExprParser, ExprSemantics
 from cgi import escape
@@ -81,7 +81,8 @@ def main():
 
 class Compiler:
     def __init__(self, source, warn=None):
-        self.module = IR.Module(source)
+        modname = os.path.splitext(os.path.basename(source))[0]
+        self.module = IR.Module(source, modname, IR.Modformat())
         self.parser = ExprParser.ExprParser(
             parseinfo=True,
             semantics=ExprSemantics.ExprSemantics()
