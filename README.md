@@ -223,17 +223,27 @@ Built in filters
 
 ###Needed and Possible changes
 
-* Contextual quoting
+0.1.0 changes
+* package.json for tatlrt module
+* Faster code for JS compiled templates
+* split tatlrt into submodules for leaner javascript runtime (only forloop for now)
+* module::func() lookup will detect whether to use rquire('./module') or require('module')
+
+Planned 0.2.0 changes
+* tatlify (browserfy support) -- own repo
+* |noquote (or |nq) as a "safer" |safe
+* document |safe optimization as being unsafe
+
+Future
+* More contextual quoting
 * Placeholders -- need fixes
-* Limit loading to specified modules
-* packaging... npm, pip?
-* Watch compiler
+* Limit loading to specified modules?
+* Watch compiler -- lean on browserfy?
 * Client code to reload changes
 * Generate shadow dom code eg mithril
 * The parser. bs4 + lxml adds <html><body><p> and loses line info. HTMLParsers() requires sax rewrite but seems more reliable.
 * Pure python3 compiler?
 * PyPy, Jython - check speed?
-* js - use string concatenation. It's miles faster on browsers.
 * Babel? Whats the JS solution?
 * any and all -- boolean quantifiers
 * Expand front matter to use built-in value syntax, (which is basically JSON5). // and /* */ Comments

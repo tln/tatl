@@ -14,7 +14,7 @@ description, long_description = __doc__.split('\n\n', 1)
 
 setup(
     name='tatl',
-    version='0.0.1',
+    version='0.1.0',
 
     description=description,
     long_description=long_description,
