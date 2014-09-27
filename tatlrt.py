@@ -15,6 +15,7 @@ false = False
 true = True
 len = len
 __all__ = ['len', 'true', 'false', 'null']
+__js_submodules__ = ['forloop']
 
 def public(obj):
     "Mark a class or function as public (aka a builtin, available from TATL templates)"

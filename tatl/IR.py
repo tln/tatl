@@ -301,9 +301,27 @@ class BuiltinPath(BasePath):
     def __init__(self, paths):
         BasePart.__init__(self)
         self.paths = paths
+        self.mod = module_for_builtin(self.paths[0])
+        self.add(self.mod)
 
     def code(self, target, state):
-        return 'tatlrt.' + '.'.join(self.paths)
+        m = self.mod.code(target, state)
+        return '.'.join([m]+self.paths)
+
+def module_for_builtin(builtin):
+    # Parse js files??
+    import tatlrt
+    if builtin in tatlrt.__js_submodules__:
+        return BuiltinImport('_'+builtin, 'tatlrt/js/tatlrt/'+builtin)
+    return Impl('tatlrt')
+
+class BuiltinImport(BasePart):
+    def __init__(self, lvar, module):
+        BasePart.__init__(self)
+        self.lvars = [lvar]
+        assert '"' not in module
+        self.js = "(%s = %s || require('%s'))" % (lvar, lvar, module)
+        self.py = 'tatlrt'
 
 class VarPath(BasePath):
     def __init__(self, paths):

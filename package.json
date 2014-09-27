@@ -3,8 +3,8 @@
   "version": "0.1.0",
   "description": "Runtime for TATL, a templating language that compiles to Python or Javascript",
   "author": "Tony Lownds <tony@lownds.com>",
-  "files": ["tatlrt.js"],
-  "main": "tatlrt",
+  "files": ["js/tatlrt.js", "js/tatlrt"],
+  "main": "js/tatlrt",
   "repository": {
     "type": "git",
     "url": "https://github.com/tln/tatl"
