@@ -1,5 +1,6 @@
 from tatl.OpList import *
 from cgi import escape  # for pre-quoting
+import os
 
 RESERVED = ['var']
 
@@ -7,18 +8,31 @@ def warn(*args):
     print 'WARN:', args
 
 # --------- Compiler API
+class Modfinder(ModfinderBase):
+    def __init__(self, source):
+        self.base = os.path.split(source)[0]
+        self.extensions = ['tatl', 'html']    # plus 'py' or 'js'
+
+    def module_spec(self, module, target):
+        for extn in self.extensions + [target]:
+            modsource = os.path.join(self.base, module+'.'+extn)
+            if os.path.exists(modsource):
+                return './'+module if target == 'js' else module     # python.... import .name?
+        return module
+
 class Modformat:
     def addto(self, modname, imports, block):
-        block.top.add(ModuleStart(modname, imports))
-        block.bot.add(ModuleEnd())
+        block.top.add(CommonJSModuleStart())
+        block.bot.add(CommonJSModuleEnd(modname))
 
 class Module:
-    def __init__(self, source, modname, modformat):
+    def __init__(self, source, modname, modfinder, modformat):
         self.block = Block(IR(), repr(self))
         self.functions = OrderedDict()
         self.modformat = modformat
         self.source = source
         self.modname = modname
+        self.modfinder = modfinder
         self.imports = []
         self.add_import('tatlrt')
 
@@ -36,7 +50,9 @@ class Module:
             self.block.top.combine(fn.done())
         return self.block.done()
 
-    def code(self, target, state):
+    def code(self, target):
+        state = CodeState()
+        state.modfinder = self.modfinder
         return self.block.top.code(target, state)
 
     def view(self):
@@ -100,7 +116,18 @@ class IR(OpList):
         return optimizers[target]
 
 # -------- Modue constructs
-class ModuleStart(BasePart):
+class CommonJSModuleStart(BasePart):
+    py = 'import tatlrt'
+    js = "var tatlrt = require('tatlrt');"
+
+class CommonJSModuleEnd(BasePart):
+    py = ''
+    def __init__(self, modname):
+        self.js = "tatlrt.add_template('%s', exports);" % modname
+
+class AMDModuleStart(BasePart):
+    # Note: this is not a usable option, yet. Also the Python logic is different
+    # and should be separated.
     def __init__(self, modname, imports):
         BasePart.__init__(self)
         self.py = 'import ' + ', '.join(imports)
@@ -111,7 +138,7 @@ var exports = {};
 tatlrt.add_template('%s', exports);
 ''' % (', '.join(map(str_targets['js'], imports)), ', '.join(imports), modname)
 
-class ModuleEnd(BasePart):
+class AMDModuleEnd(BasePart):
     py = ''
     js = 'return exports;});\n'
 
@@ -301,13 +328,22 @@ class VarPath(BasePath):
         if fn is None: return None
         return fn.argnames()
 
-class ExtPath(ArgPart, BasePath):
-    fields = ['module', 'path']
-    coerce = {'module': Str, 'path': StrList}
-    pyfmt = jsfmt = '_.load(%(module)s, %(path)s)'
+class ExtPath(BasePath):
+    def __init__(self, module, path):
+        self.module = module
+        if isinstance(path, list):
+            self.path = StrList(path)
+        BasePath.__init__(self)
+
+    def code(self, target, state):
+        module = state.modfinder.module_spec(self.module, target)
+        module = str_targets[target](module)
+        path = self.path.code(target, state)
+        fmt = {'py': '_.load(%s, %s)', 'js': '_.get(require(%s), %s)'}[target]
+        return fmt % (module, path)
 
     def imports(self):
-        return [self.module.value]
+        return [self.module]
 
 class AsgnIf(ArgPart):
     fields = ['var', 'expr']

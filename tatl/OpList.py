@@ -7,8 +7,14 @@ str_targets = {
 }
 
 
+class ModfinderBase:
+    def module_spec(self, module, target):
+        return module
+
 class CodeState:
     depth = 0
+
+    modfinder = ModfinderBase()
 
     def emitvar(self, op):
         """Return var for depth. As side effect, adjust depth:

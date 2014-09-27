@@ -1,7 +1,3 @@
-if (typeof define !== 'function') { var define = require('amdefine')(module) }
-define([], function () {
-var exports = {};
-
 exports.templates = {};
 exports.add_template = function (modname, template_exports) {
     exports.templates._last = modname;
@@ -88,21 +84,7 @@ var _proto = {
 			return JSON.stringify(s)
 		return (''+s).replace(/[&<>"']/g, function (c) { return ents[c] })
     },
-	push: function () {
-		this.outs.push(this.cur = [])
-	},
-	pop: function ()  {
-		this.cur = this.outs[this.outs.length-2]
-		return exports.safe(this.outs.pop().join(''))
-	},
-	result: function () {
-		for (var i = 0; i < this.outs.length; i++) {
-			this.outs[i] = this.outs[i].join('')
-		}
-		return exports.safe(this.outs.join(''))
-	},
 	elidestart: function () {
-		this.push()
 		this.qstack.unshift(true)
 	},
 	elidecheck: function () {
@@ -160,9 +142,6 @@ var _proto = {
         })
         return name + '(' + args.join(',') + ')'
     }
-}
-var _tag = {
-	// no behavior (yet)
 }
 var ents = {
 	"&": "&amp;",
@@ -350,5 +329,3 @@ exports.attrs = function (attdict, s) {
 exports.len = function (obj) {
     return obj.length
 };
-
-return exports;});

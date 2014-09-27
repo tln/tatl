@@ -170,7 +170,7 @@ class Runner:
 
         py = None
         try:
-            py = Compiler.compile(inp, test.file, out='py', warn=self.warn)
+            py = Compiler.compile(inp, test.path, out='py', warn=self.warn)
             pyc = compile(py, test.file, 'exec')
         except:
             if py:
@@ -202,7 +202,7 @@ class Runner:
                 pdb.set_trace()
                 print 'fast->', tatlrt.use_fast(True)
         try:
-            js = Compiler.compile(inp, test.file, out='js', warn=self.warn)
+            js = Compiler.compile(inp, test.path, out='js', warn=self.warn)
         except:
             self.compile_fail(inp, test, 'js')
         else:

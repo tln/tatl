@@ -18,7 +18,7 @@ def compile(s, source, out='py', warn=None, parser='html.parser'):
     if out == 'ir':
         return c.module.view()
     assert out in ('py', 'js')
-    code = c.module.code(out, IR.CodeState())
+    code = c.module.code(out)
     if out == 'js':
         # detect unicode literals in JS
         assert not re.search("""u(['"]).*?\\1""", out)
@@ -82,7 +82,7 @@ def main():
 class Compiler:
     def __init__(self, source, warn=None):
         modname = os.path.splitext(os.path.basename(source))[0]
-        self.module = IR.Module(source, modname, IR.Modformat())
+        self.module = IR.Module(source, modname, IR.Modfinder(source), IR.Modformat())
         self.parser = ExprParser.ExprParser(
             parseinfo=True,
             semantics=ExprSemantics.ExprSemantics()
